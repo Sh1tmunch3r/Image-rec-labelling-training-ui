@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project specific
+projects/*/images/*.png
+projects/*/images/*.jpg
+projects/*/images/*.jpeg
+projects/*/annotations/*.json
+projects/*/model.pth
+projects/.onboarding_shown
+
+# Temporary files
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
