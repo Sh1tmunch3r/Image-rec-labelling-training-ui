@@ -1196,25 +1196,55 @@ Class Distribution:
         img = self.original_image.copy().resize((new_w, new_h), Image.LANCZOS)
         draw = ImageDraw.Draw(img, "RGBA")
         font = load_font(size=max(14, new_h//32))
+        
         for idx, res in enumerate(self.annotations):
-            box = res.get("box")
             label = res.get("label", "Unknown")
-            if not box:
-                continue
             color = BOX_COLORS[idx % len(BOX_COLORS)]
+            
             if highlight_idx == idx:
                 outline = (255,255,255,255)
                 width = 5
             else:
                 outline = color
                 width = 3
-            x1, y1, x2, y2 = [int(a * new_w / self.original_image.width) for a in box[:2]] + [int(a * new_w / self.original_image.width) for a in box[2:]]
-            draw.rounded_rectangle([x1, y1, x2, y2], radius=8, outline=outline, width=width, fill=color+"40")
+            
+            # Handle both box and polygon annotations
+            ann_type = res.get("type", "box")  # Default to box for backward compatibility
+            
+            if ann_type == "box" or "box" in res:
+                box = res.get("box")
+                if not box:
+                    continue
+                x1, y1, x2, y2 = [int(a * new_w / self.original_image.width) for a in box[:2]] + [int(a * new_w / self.original_image.width) for a in box[2:]]
+                draw.rounded_rectangle([x1, y1, x2, y2], radius=8, outline=outline, width=width, fill=color+"40")
+                # Label position for box
+                label_x, label_y = x1, y1
+                
+            elif ann_type == "polygon" or "polygon" in res:
+                polygon = res.get("polygon")
+                if not polygon or len(polygon) < 3:
+                    continue
+                # Scale polygon points
+                scaled_points = []
+                for pt in polygon:
+                    scaled_x = int(pt[0] * new_w / self.original_image.width)
+                    scaled_y = int(pt[1] * new_h / self.original_image.height)
+                    scaled_points.append((scaled_x, scaled_y))
+                
+                # Draw polygon
+                draw.polygon(scaled_points, outline=outline, fill=color+"40", width=width)
+                # Label position for polygon (at first point)
+                label_x, label_y = scaled_points[0]
+            else:
+                continue
+            
+            # Draw label
             bbox = draw.textbbox((0, 0), label, font=font)
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
-            draw.rectangle([x1, y1 - text_h - 8, x1 + text_w + 10, y1], fill=color+"C0")
-            draw.text((x1+5, y1-text_h-4), label, fill="white", font=font)
+            draw.rectangle([label_x, label_y - text_h - 8, label_x + text_w + 10, label_y], fill=color+"C0")
+            draw.text((label_x+5, label_y-text_h-4), label, fill="white", font=font)
+        
         tk_img = ImageTk.PhotoImage(img)
         self.lab_canvas.delete("all")
         self.lab_image_on_canvas = tk_img
@@ -1226,6 +1256,10 @@ Class Distribution:
         # Redraw temp rect if drawing
         if self.drawing and self.rect:
             self.lab_canvas.coords(self.rect, self.start_x, self.start_y, self.cur_x, self.cur_y)
+        # Redraw temp polygon if drawing
+        for item in self.temp_polygon_items:
+            if self.lab_canvas.coords(item):  # Check if item still exists
+                pass  # Items are already on canvas
 
     def lab_on_mouse_down(self, event):
         if self.original_image is None:
