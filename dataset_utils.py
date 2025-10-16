@@ -76,8 +76,9 @@ def validate_dataset(dataset_path):
                         label = ann.get('label')
                         if label:
                             status["classes"].add(label)
-                        if not ann.get('box'):
-                            status["warnings"].append(f"{ann_file}: Missing box data")
+                        # Check for either box or polygon annotation
+                        if not ann.get('box') and not ann.get('polygon'):
+                            status["warnings"].append(f"{ann_file}: Missing box or polygon data")
                 else:
                     status["warnings"].append(f"{ann_file}: No annotations/detections found")
                     

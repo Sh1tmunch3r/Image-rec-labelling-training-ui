@@ -88,6 +88,74 @@ class TestDatasetValidation(unittest.TestCase):
         self.assertEqual(status["image_count"], 0)
         self.assertIn("No images found", str(status["errors"]))
     
+    def test_polygon_annotations(self):
+        """Test validation of polygon annotations"""
+        # Create test dataset with polygon annotations
+        self.create_test_image("test_poly.png")
+        polygon_data = {
+            "image": "test_poly.png",
+            "width": 640,
+            "height": 480,
+            "annotations": [
+                {
+                    "label": "triangle",
+                    "type": "polygon",
+                    "polygon": [[100, 100], [200, 100], [150, 200]]
+                }
+            ]
+        }
+        ann_path = os.path.join(self.annotations_dir, "test_poly.json")
+        with open(ann_path, 'w') as f:
+            json.dump(polygon_data, f)
+        
+        # Validate dataset
+        from dataset_utils import validate_dataset
+        is_valid, status = validate_dataset(self.dataset_dir)
+        
+        self.assertTrue(is_valid, "Polygon annotations should be valid")
+        self.assertEqual(status["valid_annotations"], 1)
+        self.assertIn("triangle", status["classes"])
+        # Should not have warning about missing box for polygon annotations
+        box_warnings = [w for w in status["warnings"] if "Missing box" in w and "polygon" not in w.lower()]
+        self.assertEqual(len(box_warnings), 0, "Should not warn about missing box for polygon annotations")
+    
+    def test_mixed_box_and_polygon_annotations(self):
+        """Test validation of dataset with both box and polygon annotations"""
+        # Image with box annotation
+        self.create_test_image("test_box.png")
+        self.create_test_annotation("test_box.png", [
+            {"label": "cat", "box": [100, 100, 200, 200]}
+        ])
+        
+        # Image with polygon annotation
+        self.create_test_image("test_poly.png")
+        polygon_data = {
+            "image": "test_poly.png",
+            "width": 640,
+            "height": 480,
+            "annotations": [
+                {
+                    "label": "dog",
+                    "type": "polygon",
+                    "polygon": [[100, 100], [200, 100], [200, 200], [100, 200]]
+                }
+            ]
+        }
+        ann_path = os.path.join(self.annotations_dir, "test_poly.json")
+        with open(ann_path, 'w') as f:
+            json.dump(polygon_data, f)
+        
+        # Validate dataset
+        from dataset_utils import validate_dataset
+        is_valid, status = validate_dataset(self.dataset_dir)
+        
+        self.assertTrue(is_valid, "Mixed annotations should be valid")
+        self.assertEqual(status["image_count"], 2)
+        self.assertEqual(status["valid_annotations"], 2)
+        self.assertEqual(len(status["classes"]), 2)
+        self.assertIn("cat", status["classes"])
+        self.assertIn("dog", status["classes"])
+    
     def test_missing_annotations(self):
         """Test dataset with images but no annotations"""
         self.create_test_image("test1.png")

@@ -2,6 +2,38 @@
 
 All notable changes to Image Labeling Studio Pro are documented in this file.
 
+## [Unreleased] - Polygon Annotation Fixes
+
+### 🔧 Fixed Issues with Polygon Annotations
+
+#### Annotation Validation & Counting
+- **Fixed**: Polygon annotations now properly recognized as valid annotations in dataset validation
+- **Fixed**: Images with polygon annotations are now correctly counted in annotation statistics
+- **Fixed**: Dataset validation no longer warns about missing box data for polygon annotations
+- **Enhanced**: Validation now checks for either `box` or `polygon` data in annotations
+
+#### Export Functionality
+- **Fixed**: COCO JSON export now includes polygon annotations in proper `segmentation` format
+- **Fixed**: COCO export calculates bounding boxes from polygon points for COCO compatibility
+- **Fixed**: Per-image JSON export now includes polygon data in detections
+- **Enhanced**: Export functions handle mixed annotations (both boxes and polygons) correctly
+
+#### Training Support
+- **Fixed**: Training dataset loader now converts polygon annotations to bounding boxes for model training
+- **Fixed**: Images with only polygon annotations are now included in training datasets
+- **Enhanced**: Polygon annotations are automatically converted to bounding boxes for Faster R-CNN training
+
+### 🧪 Testing
+- **NEW**: `test_polygon_export.py` - Tests for polygon export in COCO and per-image JSON formats
+- **Enhanced**: `test_dataset_registration.py` - Added tests for polygon annotation validation
+- Tests cover: polygon validation, mixed box/polygon datasets, COCO segmentation format
+
+### 📊 Technical Details
+- Polygon annotations stored as list of [x, y] coordinate pairs
+- COCO export: polygons in `segmentation` field as flattened coordinate list
+- Bounding box auto-calculated from polygon for training: [min_x, min_y, max_x, max_y]
+- Full backwards compatibility with existing box annotations
+
 ## [Unreleased] - Dataset Registration & Validation
 
 ### 🔧 Dataset Management (NEW)
