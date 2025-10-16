@@ -29,7 +29,7 @@ except:
     pass  # Will use system PATH
 
 # Import device utilities
-from device_utils import load_settings, save_settings, get_device
+from device_utils import load_settings, save_settings, get_device, log_cuda_diagnostics, get_cuda_diagnostics
 
 RECOGNIZER_FOLDER = "recognizers"
 PROJECTS_FOLDER = "projects"
@@ -377,6 +377,12 @@ class ImageRecognitionApp(ctk.CTk):
     def detect_device(self):
         """Detect CUDA availability and set device"""
         try:
+            # Log comprehensive CUDA diagnostics at startup
+            print("\n" + "=" * 60)
+            print("Application Startup - CUDA Detection")
+            print("=" * 60)
+            log_cuda_diagnostics(print)
+            
             if torch.cuda.is_available():
                 self.detected_device = 'cuda'
                 self.device_name = f"CUDA ({torch.cuda.get_device_name(0)})"
@@ -415,6 +421,137 @@ class ImageRecognitionApp(ctk.CTk):
             else:
                 display_text = f"Detected: {self.device_name}"
                 self.detected_device_label.configure(text=display_text, text_color="#95A5A6")
+    
+    def show_cuda_diagnostics(self):
+        """Show comprehensive CUDA diagnostics dialog"""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("CUDA Diagnostics")
+        dialog.geometry("700x600")
+        dialog.grab_set()
+        
+        ctk.CTkLabel(dialog, text="🔍 CUDA System Diagnostics", 
+                    font=ctk.CTkFont(size=20, weight="bold")).pack(pady=15)
+        
+        # Get diagnostics
+        diagnostics = get_cuda_diagnostics()
+        
+        # Create scrollable text widget
+        text_frame = ctk.CTkFrame(dialog)
+        text_frame.pack(pady=10, padx=20, fill="both", expand=True)
+        
+        text = ctk.CTkTextbox(text_frame, width=650, height=450, 
+                             font=("Consolas", 11))
+        text.pack(pady=5, padx=5, fill="both", expand=True)
+        
+        # Build diagnostic output
+        output = []
+        output.append("=" * 60)
+        output.append("SYSTEM INFORMATION")
+        output.append("=" * 60)
+        output.append(f"PyTorch version: {diagnostics['torch_version']}")
+        output.append(f"CUDA version: {diagnostics['cuda_version']}")
+        output.append(f"Python executable: {diagnostics['python_executable']}")
+        output.append("")
+        output.append("=" * 60)
+        output.append("CUDA STATUS")
+        output.append("=" * 60)
+        output.append(f"CUDA available: {diagnostics['cuda_available']}")
+        output.append(f"CUDA device count: {diagnostics['device_count']}")
+        
+        if diagnostics['device_name']:
+            output.append(f"Device name: {diagnostics['device_name']}")
+        
+        output.append(f"CUDA_VISIBLE_DEVICES: {diagnostics['cuda_visible_devices']}")
+        output.append("")
+        
+        # Add status-specific information
+        if diagnostics['cuda_available']:
+            output.append("✓ CUDA is working correctly!")
+            output.append("")
+            output.append("Your system is ready for GPU-accelerated training.")
+            output.append("Select 'Auto' or 'Force GPU' in device settings to use GPU.")
+        else:
+            output.append("⚠️ CUDA NOT DETECTED")
+            output.append("")
+            output.append("=" * 60)
+            output.append("TROUBLESHOOTING STEPS")
+            output.append("=" * 60)
+            output.append("")
+            
+            if diagnostics['cuda_version'] is None:
+                output.append("Issue: CPU-only PyTorch Installation")
+                output.append("")
+                output.append("Your PyTorch installation does NOT have CUDA support.")
+                output.append("You are using a CPU-only version.")
+                output.append("")
+                output.append("Solution:")
+                output.append("1. Visit https://pytorch.org/get-started/locally/")
+                output.append("2. Select your OS, Package Manager, Python version, and CUDA version")
+                output.append("3. Run the installation command provided")
+                output.append("")
+                output.append("Example for CUDA 12.1:")
+                output.append("  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121")
+            else:
+                output.append("Issue: CUDA not detected despite PyTorch CUDA support")
+                output.append("")
+                output.append("Possible causes:")
+                output.append("")
+                output.append("1. No NVIDIA GPU in system")
+                output.append("   - Check if you have an NVIDIA GPU")
+                output.append("   - Run 'nvidia-smi' in terminal to verify")
+                output.append("")
+                output.append("2. NVIDIA drivers not installed or outdated")
+                output.append("   - Download latest drivers from nvidia.com")
+                output.append(f"   - Your PyTorch expects CUDA {diagnostics['cuda_version']}")
+                output.append("   - Driver version must support this CUDA version")
+                output.append("")
+                output.append("3. CUDA_VISIBLE_DEVICES environment variable issue")
+                output.append(f"   - Current value: {diagnostics['cuda_visible_devices']}")
+                output.append("   - If set to -1 or empty, GPUs are hidden")
+                output.append("   - Unset it or set to valid GPU IDs (0,1,2...)")
+                output.append("")
+                output.append("4. Incompatible CUDA/driver version")
+                output.append("   - Run 'nvidia-smi' to check driver version")
+                output.append("   - Ensure driver supports CUDA version in PyTorch")
+                output.append("")
+                output.append("Verification commands:")
+                output.append("  nvidia-smi          # Check GPU and driver")
+                output.append("  nvcc --version      # Check CUDA toolkit")
+            
+            output.append("")
+            output.append("Note: Training will use CPU (slower but functional)")
+        
+        output.append("")
+        output.append("=" * 60)
+        
+        # Insert text
+        text.insert("1.0", "\n".join(output))
+        text.configure(state="disabled")
+        
+        # Store output for clipboard
+        self._cuda_diagnostics_output = "\n".join(output)
+        
+        # Buttons frame
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(pady=10)
+        
+        # Copy to clipboard button
+        def copy_to_clipboard():
+            self.clipboard_clear()
+            self.clipboard_append(self._cuda_diagnostics_output)
+            copy_btn.configure(text="✓ Copied!")
+            self.after(2000, lambda: copy_btn.configure(text="📋 Copy to Clipboard"))
+        
+        copy_btn = ctk.CTkButton(btn_frame, text="📋 Copy to Clipboard", 
+                                command=copy_to_clipboard,
+                                width=160, height=35,
+                                font=ctk.CTkFont(size=12))
+        copy_btn.pack(side="left", padx=5)
+        
+        # Close button
+        ctk.CTkButton(btn_frame, text="Close", command=dialog.destroy,
+                     width=100, height=35,
+                     font=ctk.CTkFont(size=12)).pack(side="left", padx=5)
     
     def setup_status_bar(self):
         """Setup status bar at bottom of window"""
@@ -843,6 +980,13 @@ class ImageRecognitionApp(ctk.CTk):
                                                   font=ctk.CTkFont(size=10),
                                                   text_color="#95A5A6")
         self.detected_device_label.grid(row=2, column=0, columnspan=2, pady=2, sticky="w")
+        
+        # Check CUDA button
+        self.check_cuda_button = ctk.CTkButton(device_frame, text="🔍 Check CUDA",
+                                               command=self.show_cuda_diagnostics,
+                                               width=180, height=28,
+                                               fg_color="#3498DB", hover_color="#2980B9")
+        self.check_cuda_button.grid(row=3, column=0, columnspan=2, pady=5, sticky="ew")
 
         self.train_button = ctk.CTkButton(left_frame, text="🚀 Start Training",
                                          command=self.train_model_thread,
@@ -2236,13 +2380,26 @@ Class Distribution:
             momentum = float(self.momentum_entry.get() or 0.9)
             weight_decay = float(self.weight_decay_entry.get() or 0.0005)
             
+            # Log comprehensive CUDA diagnostics at training start
+            self.log_metric("=" * 60)
+            self.log_metric("TRAINING STARTED - CUDA Diagnostics")
+            self.log_metric("=" * 60)
+            diagnostics = get_cuda_diagnostics()
+            self.log_metric(f"PyTorch version: {diagnostics['torch_version']}")
+            self.log_metric(f"CUDA version: {diagnostics['cuda_version']}")
+            self.log_metric(f"CUDA available: {diagnostics['cuda_available']}")
+            self.log_metric(f"CUDA device count: {diagnostics['device_count']}")
+            if diagnostics['device_name']:
+                self.log_metric(f"Device name: {diagnostics['device_name']}")
+            self.log_metric(f"CUDA_VISIBLE_DEVICES: {diagnostics['cuda_visible_devices']}")
+            
             # Get device based on preference
             device, device_name = self.get_training_device()
             
+            self.log_metric("=" * 60)
             self.log_metric(f"Starting training with {epochs} epochs")
             self.log_metric(f"Learning rate: {lr}, Batch size: {batch_size}")
-            self.log_metric(f"Using device: {device_name}")
-            self.log_metric(f"Device preference: {self.device_preference}")
+            self.log_metric(f"Using device: {device_name} (preference: {self.device_preference})")
             self.log_metric("-" * 50)
             self.show_notification(f"🚀 Training started on {device_name}", "info")
             

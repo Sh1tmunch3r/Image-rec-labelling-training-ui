@@ -303,8 +303,133 @@ This project is open source and available for use.
 - Pillow for image processing
 - MSS for screen capture
 
+## 🔧 CUDA/GPU Troubleshooting
+
+### Verifying CUDA Support
+
+The application includes a built-in **"Check CUDA"** button in the Training tab that provides comprehensive diagnostics. Use this first to diagnose any GPU-related issues.
+
+### Common Issues and Solutions
+
+#### Issue 1: CUDA Not Detected (CPU-only PyTorch)
+
+**Symptoms:**
+- Training tab shows "Detected: CPU"
+- Check CUDA button shows "CUDA version: None"
+- PyTorch was installed without CUDA support
+
+**Solution:**
+1. Visit https://pytorch.org/get-started/locally/
+2. Select your configuration:
+   - Operating System (Windows/Linux/Mac)
+   - Package Manager (pip/conda)
+   - Python version
+   - CUDA version (check your NVIDIA driver version with `nvidia-smi`)
+3. Run the installation command provided
+
+**Example for CUDA 12.1:**
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+**Example for CUDA 11.8:**
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+```
+
+#### Issue 2: CUDA Installed but Not Available
+
+**Symptoms:**
+- Check CUDA shows "CUDA version: 12.x" but "CUDA available: False"
+- PyTorch has CUDA support but cannot detect GPU
+
+**Possible Causes:**
+
+1. **No NVIDIA GPU in system**
+   - Verify you have an NVIDIA GPU: Run `nvidia-smi`
+   - If command not found or shows no GPU, CUDA cannot work
+
+2. **NVIDIA Drivers Not Installed or Outdated**
+   - Download latest drivers from https://www.nvidia.com/Download/index.aspx
+   - Your driver version must support the CUDA version in PyTorch
+   - Run `nvidia-smi` to check driver version
+   - Driver version 450+ supports CUDA 11.0+
+   - Driver version 520+ supports CUDA 11.8+
+   - Driver version 525+ supports CUDA 12.0+
+
+3. **CUDA_VISIBLE_DEVICES Environment Variable**
+   - Check current value: Use Check CUDA button or run `echo $CUDA_VISIBLE_DEVICES` (Linux/Mac) or `echo %CUDA_VISIBLE_DEVICES%` (Windows)
+   - If set to `-1` or empty string, GPUs are hidden
+   - To fix, unset the variable or set to valid GPU IDs (e.g., `0` or `0,1`)
+   - Windows: `set CUDA_VISIBLE_DEVICES=0`
+   - Linux/Mac: `export CUDA_VISIBLE_DEVICES=0`
+
+4. **Incompatible CUDA/Driver Version**
+   - PyTorch CUDA version must be compatible with your NVIDIA driver
+   - Check PyTorch CUDA version: Use Check CUDA button
+   - Check driver version: Run `nvidia-smi` (top right shows driver version)
+   - If incompatible, reinstall PyTorch with matching CUDA version
+
+#### Issue 3: Training Still Uses CPU Despite GPU Available
+
+**Symptoms:**
+- Check CUDA shows CUDA is available
+- Training logs show "Using device: CPU"
+
+**Solution:**
+- In Training tab, set device preference to "Auto (recommended)" or "Force GPU"
+- Device preference is saved in `config/settings.json`
+- If "Force CPU" is selected, it will never use GPU regardless of availability
+
+### Verification Commands
+
+**Check GPU and Driver:**
+```bash
+nvidia-smi
+```
+Expected output: Shows GPU name, driver version, CUDA version
+
+**Check CUDA Toolkit (if installed):**
+```bash
+nvcc --version
+```
+Expected output: Shows CUDA compiler version
+
+**Check PyTorch CUDA in Python:**
+```python
+import torch
+print(f"PyTorch version: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"CUDA version: {torch.version.cuda}")
+print(f"Device count: {torch.cuda.device_count()}")
+if torch.cuda.is_available():
+    print(f"Device name: {torch.cuda.get_device_name(0)}")
+```
+
+### Using the Check CUDA Button
+
+The **"🔍 Check CUDA"** button in the Training tab provides:
+- Complete system diagnostics
+- PyTorch and CUDA version information
+- Device detection status
+- CUDA_VISIBLE_DEVICES value
+- Python executable path
+- Troubleshooting steps specific to your issue
+- Copy-to-clipboard functionality for bug reports
+
+Use this button first when experiencing any GPU-related issues!
+
+### Performance Notes
+
+- **GPU training** is typically **5-10x faster** than CPU
+- Small datasets (< 50 images) may not show significant speedup
+- Larger models and datasets benefit most from GPU acceleration
+- If GPU unavailable, training will work on CPU (just slower)
+
 ## 📧 Support
 For issues, questions, or feature requests, please open an issue on GitHub.
+
+When reporting GPU/CUDA issues, include the output from the "Check CUDA" button.
 
 ---
 

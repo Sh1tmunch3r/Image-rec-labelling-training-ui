@@ -433,6 +433,146 @@ class TestDevicePreferences(unittest.TestCase):
         self.assertIn(device.type, ['cpu', 'cuda'])
 
 
+class TestCudaDiagnostics(unittest.TestCase):
+    """Test CUDA diagnostics functionality"""
+    
+    def test_get_cuda_diagnostics(self):
+        """Test get_cuda_diagnostics returns proper structure"""
+        from device_utils import get_cuda_diagnostics
+        
+        diagnostics = get_cuda_diagnostics()
+        
+        # Check all required keys are present
+        self.assertIn('torch_version', diagnostics)
+        self.assertIn('cuda_version', diagnostics)
+        self.assertIn('cuda_available', diagnostics)
+        self.assertIn('device_count', diagnostics)
+        self.assertIn('device_name', diagnostics)
+        self.assertIn('cuda_visible_devices', diagnostics)
+        self.assertIn('python_executable', diagnostics)
+        
+        # Check types
+        self.assertIsInstance(diagnostics['torch_version'], str)
+        self.assertIsInstance(diagnostics['cuda_available'], bool)
+        self.assertIsInstance(diagnostics['device_count'], int)
+        self.assertIsInstance(diagnostics['python_executable'], str)
+    
+    def test_log_cuda_diagnostics(self):
+        """Test log_cuda_diagnostics produces output"""
+        from device_utils import log_cuda_diagnostics
+        
+        # Capture output
+        output_lines = []
+        log_cuda_diagnostics(output_lines.append)
+        
+        # Should have produced output
+        self.assertGreater(len(output_lines), 0)
+        
+        # Check for key information in output
+        output_text = '\n'.join(output_lines)
+        self.assertIn('CUDA Diagnostics', output_text)
+        self.assertIn('PyTorch version', output_text)
+        self.assertIn('CUDA available', output_text)
+    
+    def test_cuda_not_available_warning(self):
+        """Test that proper warning is shown when CUDA not available"""
+        from device_utils import log_cuda_diagnostics
+        
+        output_lines = []
+        log_cuda_diagnostics(output_lines.append)
+        output_text = '\n'.join(output_lines)
+        
+        # If CUDA not available, should have troubleshooting
+        if not torch.cuda.is_available():
+            self.assertIn('CUDA NOT DETECTED', output_text)
+            self.assertIn('Troubleshooting', output_text)
+    
+    @patch('torch.cuda.is_available')
+    @patch('torch.version.cuda', None)
+    def test_cpu_only_pytorch_detection(self, mock_is_available):
+        """Test detection of CPU-only PyTorch"""
+        mock_is_available.return_value = False
+        
+        from device_utils import get_cuda_diagnostics, log_cuda_diagnostics
+        
+        diagnostics = get_cuda_diagnostics()
+        
+        # Should detect CPU-only installation
+        self.assertFalse(diagnostics['cuda_available'])
+        self.assertIsNone(diagnostics['cuda_version'])
+        
+        # Log should mention CPU-only installation
+        output_lines = []
+        log_cuda_diagnostics(output_lines.append)
+        output_text = '\n'.join(output_lines)
+        self.assertIn('CPU-only', output_text)
+    
+    @patch('torch.cuda.is_available')
+    @patch('torch.version.cuda', '12.1')
+    def test_cuda_installed_but_unavailable(self, mock_is_available):
+        """Test detection when CUDA is installed but not available"""
+        mock_is_available.return_value = False
+        
+        from device_utils import log_cuda_diagnostics
+        
+        output_lines = []
+        log_cuda_diagnostics(output_lines.append)
+        output_text = '\n'.join(output_lines)
+        
+        # Should mention driver/GPU issues
+        self.assertIn('CUDA NOT DETECTED', output_text)
+        self.assertIn('nvidia-smi', output_text)
+
+
+class TestEnhancedDeviceSelection(unittest.TestCase):
+    """Test enhanced device selection with better warnings"""
+    
+    def test_force_gpu_with_detailed_warning(self):
+        """Test force GPU shows detailed warning when unavailable"""
+        from device_utils import get_device
+        
+        device, device_name, warning = get_device('force_gpu')
+        
+        if not torch.cuda.is_available():
+            # Should have a warning
+            self.assertIsNotNone(warning)
+            # Warning should be helpful
+            self.assertTrue(
+                'CPU-only' in warning or 'CUDA not available' in warning or 'nvidia-smi' in warning
+            )
+    
+    def test_device_always_valid(self):
+        """Test that get_device always returns a valid device"""
+        from device_utils import get_device
+        
+        for preference in ['auto', 'force_gpu', 'force_cpu']:
+            device, device_name, warning = get_device(preference)
+            
+            # Should always get a valid device
+            self.assertIsInstance(device, torch.device)
+            self.assertIn(device.type, ['cpu', 'cuda'])
+            
+            # Should always get a device name
+            self.assertIsInstance(device_name, str)
+            self.assertGreater(len(device_name), 0)
+    
+    def test_warning_messages_user_friendly(self):
+        """Test that warning messages are user-friendly"""
+        from device_utils import get_device
+        
+        _, _, warning = get_device('force_gpu')
+        
+        if warning:
+            # Warning should not be too technical
+            self.assertIsInstance(warning, str)
+            # Should provide actionable information
+            self.assertTrue(
+                'pytorch.org' in warning.lower() or 
+                'nvidia-smi' in warning.lower() or
+                'driver' in warning.lower()
+            )
+
+
 class TestBackwardsCompatibility(unittest.TestCase):
     """Test that new features don't break existing functionality"""
     
@@ -499,6 +639,8 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestImageSaving))
     suite.addTests(loader.loadTestsFromTestCase(TestNMSFiltering))
     suite.addTests(loader.loadTestsFromTestCase(TestDevicePreferences))
+    suite.addTests(loader.loadTestsFromTestCase(TestCudaDiagnostics))
+    suite.addTests(loader.loadTestsFromTestCase(TestEnhancedDeviceSelection))
     suite.addTests(loader.loadTestsFromTestCase(TestBackwardsCompatibility))
     
     # Run tests
