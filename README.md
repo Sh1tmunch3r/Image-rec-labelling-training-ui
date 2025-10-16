@@ -1,8 +1,36 @@
 # Image Labeling Studio Pro 🎨
 
-A professional, full-featured image annotation and model training application with modern UI/UX designed for both casual and expert users.
+## Version 2.0 - Now with Intelligent Auto-Training & Smart Detection! 🚀
 
-## ✨ Features
+A professional, full-featured image annotation and model training application with modern UI/UX, intelligent parameter selection, and advanced detection capabilities designed for both casual and expert users.
+
+## ✨ NEW in Version 2.0
+
+### 🧠 Intelligent Auto-Training
+- **One-click optimization** - Automatically configures training parameters based on your dataset
+- **Smart analysis** - Considers dataset size, annotations per image, and number of classes
+- **Detailed explanations** - Shows reasoning behind each setting choice
+- **Adaptive learning** - Adjusts epochs, learning rate, and batch size intelligently
+
+### 🎯 Smart Detection Control
+- **Adjustable confidence threshold** - Interactive slider from 0.1 to 0.95
+- **Non-Maximum Suppression (NMS)** - Removes duplicate detections automatically
+- **One box per object** - Clean, professional results
+- **Real-time filtering** - Instant updates when threshold changes
+
+### 📚 Comprehensive Help System
+- **F1 Quick Help** - Press F1 anywhere for instant guidance
+- **Training Guide** - Complete explanation of all parameters
+- **Keyboard Shortcuts** - Easy reference for all commands
+- **Professional documentation** - Clear, organized, accessible
+
+### 🎯 Enhanced Labeling
+- **Auto-save functionality** - Saves annotations automatically when navigating
+- **Real-time size preview** - Shows dimensions during box drawing
+- **Enhanced visuals** - Bright colors and better contrast for drawing
+- **Professional polish** - Modern UI with emoji icons and rounded corners
+
+## ✨ Core Features
 
 ### 🎯 Advanced Annotation Tools
 - **Multiple Annotation Types**
@@ -58,6 +86,11 @@ A professional, full-featured image annotation and model training application wi
   - Project backup
 
 ### 🚀 Advanced Model Training
+- **Intelligent Auto-Configuration** ⭐ NEW
+  - One-click optimization based on dataset size
+  - Automatic parameter selection
+  - Detailed reasoning and explanations
+  - Adapts to dataset complexity
 - **Hyperparameter Tuning**
   - Configurable epochs
   - Learning rate control
@@ -147,15 +180,18 @@ python image_recognition.py
 
 ### 4. Train Your Model
 1. Go to the "Train" tab
-2. Choose a preset or customize hyperparameters
+2. **Click "🧠 Auto-Configure Settings"** for intelligent optimization ⭐ NEW
+   - Or choose a preset or customize hyperparameters manually
 3. Click "🚀 Start Training"
 4. Monitor real-time progress and metrics
 
 ### 5. Use Your Model
 1. Go to the "Recognize" tab
 2. Select your trained model
-3. Capture or load an image
-4. View recognition results
+3. **Adjust confidence threshold** for desired detection sensitivity ⭐ NEW
+4. **Enable NMS** to remove duplicate detections ⭐ NEW
+5. Capture or load an image
+6. View clean, filtered recognition results
 
 ### 6. Monitor Progress
 - Check the "Dashboard" tab for project statistics
@@ -165,16 +201,22 @@ python image_recognition.py
 
 ## 🎨 UI/UX Improvements
 
-### Professional Design
-- Modern color scheme with dark theme
-- Intuitive icon usage
+### Professional Design (Enhanced in v2.0)
+- Modern dark theme with optimized contrast
+- **Emoji icons** throughout for visual guidance ⭐ NEW
+- **Rounded corners** on all buttons (8-10px) ⭐ NEW
+- **Consistent sizing** - all buttons 32-40px height ⭐ NEW
 - Clear visual hierarchy
 - Responsive panel layouts
 - Smooth interactions
+- **Enhanced canvas** with professional background ⭐ NEW
 
 ### User Experience
 - Minimal clicks to common actions
 - Keyboard-first workflow support
+- **Auto-save on navigation** ⭐ NEW
+- **Real-time size preview** while drawing ⭐ NEW
+- **F1 quick help** from anywhere ⭐ NEW
 - Visual feedback for all actions
 - Status indicators everywhere
 - Error prevention and recovery
