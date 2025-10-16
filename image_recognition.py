@@ -140,7 +140,8 @@ class ProjectStatistics:
                     stats["annotated_images"] += 1
                     with open(os.path.join(ann_dir, ann_file), 'r') as f:
                         data = json.load(f)
-                        annotations = data.get('annotations', [])
+                        # Support both 'annotations' (project format) and 'detections' (export format)
+                        annotations = data.get('annotations', data.get('detections', []))
                         stats["total_annotations"] += len(annotations)
                         for ann in annotations:
                             label = ann.get('label', 'Unknown')
@@ -235,7 +236,15 @@ class AnnotationDataset(Dataset):
         annotations = data.get('annotations', data.get('detections', []))
         for ann in annotations:
             box = ann.get('box')
+            polygon = ann.get('polygon')
             label = ann.get('label')
+            
+            # Convert polygon to bounding box if needed
+            if not box and polygon and len(polygon) >= 3:
+                xs = [pt[0] for pt in polygon]
+                ys = [pt[1] for pt in polygon]
+                box = [min(xs), min(ys), max(xs), max(ys)]
+            
             if box and label in self.class_to_id:
                 boxes.append(box)
                 labels.append(self.class_to_id[label])
