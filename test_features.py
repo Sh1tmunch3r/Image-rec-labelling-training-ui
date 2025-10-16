@@ -331,6 +331,108 @@ class TestNMSFiltering(unittest.TestCase):
         self.assertTrue(all(d['score'] >= threshold for d in filtered))
 
 
+class TestDevicePreferences(unittest.TestCase):
+    """Test device preference selection and settings persistence"""
+    
+    def setUp(self):
+        """Create temporary directory for test settings"""
+        self.test_dir = tempfile.mkdtemp()
+        self.settings_file = os.path.join(self.test_dir, "settings.json")
+    
+    def tearDown(self):
+        """Remove temporary directory"""
+        shutil.rmtree(self.test_dir)
+    
+    def test_auto_preference(self):
+        """Test auto device preference"""
+        # Import the helper function
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from device_utils import get_device
+        
+        device, device_name, warning = get_device('auto')
+        
+        # Should return a valid device
+        self.assertIsInstance(device, torch.device)
+        self.assertIn(device.type, ['cpu', 'cuda'])
+        
+        # Device name should be a string
+        self.assertIsInstance(device_name, str)
+        
+        # Warning should be None for auto mode with available device
+        if torch.cuda.is_available():
+            self.assertIsNone(warning)
+    
+    def test_force_cpu_preference(self):
+        """Test force CPU preference"""
+        from device_utils import get_device
+        
+        device, device_name, warning = get_device('force_cpu')
+        
+        # Should always return CPU
+        self.assertEqual(device.type, 'cpu')
+        self.assertEqual(device_name, 'CPU')
+        self.assertIsNone(warning)
+    
+    def test_force_gpu_preference_available(self):
+        """Test force GPU preference when GPU is available"""
+        from device_utils import get_device
+        
+        device, device_name, warning = get_device('force_gpu')
+        
+        if torch.cuda.is_available():
+            # Should return CUDA device
+            self.assertEqual(device.type, 'cuda')
+            self.assertIn('GPU', device_name)
+            self.assertIsNone(warning)
+        else:
+            # Should fallback to CPU with warning
+            self.assertEqual(device.type, 'cpu')
+            self.assertIsNotNone(warning)
+            self.assertIn('not available', warning)
+    
+    def test_settings_save_load(self):
+        """Test settings save and load"""
+        from device_utils import save_settings, load_settings
+        
+        # Save test settings
+        test_settings = {
+            "device_preference": "force_gpu",
+            "version": "1.0"
+        }
+        
+        # Override settings file location for test
+        import device_utils
+        original_file = device_utils.SETTINGS_FILE
+        original_folder = device_utils.CONFIG_FOLDER
+        device_utils.SETTINGS_FILE = self.settings_file
+        device_utils.CONFIG_FOLDER = self.test_dir
+        
+        try:
+            # Save and load
+            success = save_settings(test_settings)
+            self.assertTrue(success)
+            
+            loaded = load_settings()
+            self.assertEqual(loaded['device_preference'], 'force_gpu')
+            self.assertEqual(loaded['version'], '1.0')
+        finally:
+            # Restore original
+            device_utils.SETTINGS_FILE = original_file
+            device_utils.CONFIG_FOLDER = original_folder
+    
+    def test_invalid_preference_fallback(self):
+        """Test that invalid preference falls back to auto"""
+        from device_utils import get_device
+        
+        # Pass invalid preference
+        device, device_name, warning = get_device('invalid_preference')
+        
+        # Should behave like auto (default case in the function)
+        self.assertIsInstance(device, torch.device)
+        self.assertIn(device.type, ['cpu', 'cuda'])
+
+
 class TestBackwardsCompatibility(unittest.TestCase):
     """Test that new features don't break existing functionality"""
     
@@ -369,6 +471,19 @@ class TestBackwardsCompatibility(unittest.TestCase):
         
         self.assertEqual(loaded["image_width"], 640)
         self.assertEqual(len(loaded["annotations"]), 1)
+    
+    def test_settings_file_structure(self):
+        """Test that settings file has correct structure"""
+        from device_utils import load_settings
+        
+        settings = load_settings()
+        
+        # Should have required keys
+        self.assertIn('device_preference', settings)
+        self.assertIn('version', settings)
+        
+        # Device preference should be valid
+        self.assertIn(settings['device_preference'], ['auto', 'force_gpu', 'force_cpu'])
 
 
 def run_tests():
@@ -383,6 +498,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestLiveRecognitionControls))
     suite.addTests(loader.loadTestsFromTestCase(TestImageSaving))
     suite.addTests(loader.loadTestsFromTestCase(TestNMSFiltering))
+    suite.addTests(loader.loadTestsFromTestCase(TestDevicePreferences))
     suite.addTests(loader.loadTestsFromTestCase(TestBackwardsCompatibility))
     
     # Run tests
