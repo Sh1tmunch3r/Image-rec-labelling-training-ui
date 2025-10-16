@@ -45,3 +45,6 @@ projects/.onboarding_shown
 *.bak
 .DS_Store
 Thumbs.db
+
+# Exports
+exports/

@@ -4,7 +4,28 @@
 
 A professional, full-featured image annotation and model training application with modern UI/UX, intelligent parameter selection, and advanced detection capabilities designed for both casual and expert users.
 
-## ✨ NEW in Version 2.0
+## ✨ NEW in Version 3.0
+
+### 🎥 Live Recognition Mode
+- **Real-time screen capture** - Continuously capture and recognize at configurable FPS (1-10)
+- **Live preview** - See detections update in real-time as screen content changes
+- **Adjustable frame rate** - Balance between responsiveness and system load
+- **Batch frame capture** - Save multiple frames with annotations at once
+- **Seamless toggle** - Switch between live mode and single-shot capture
+
+### 💾 Advanced Export with Annotations
+- **COCO JSON format** - Industry-standard format ready for training pipelines
+- **Per-image JSON** - Simple format for individual file processing
+- **Complete metadata** - Saves bounding boxes, labels, confidence scores, timestamps
+- **Organized structure** - Automatic folder organization (images/ and annotations/)
+- **Training-ready** - Exports work directly with common training frameworks
+
+### 🖥️ GPU Auto-Detection & Training
+- **Automatic CUDA detection** - Detects and uses GPU automatically at startup
+- **Smart fallback** - Gracefully falls back to CPU if GPU initialization fails
+- **Device override** - Force CPU or GPU usage via Settings
+- **Real-time indicator** - Status bar shows current device (GPU/CPU)
+- **5-10x faster training** - Leverage GPU acceleration when available
 
 ### 🧠 Intelligent Auto-Training
 - **One-click optimization** - Automatically configures training parameters based on your dataset
@@ -17,6 +38,12 @@ A professional, full-featured image annotation and model training application wi
 - **Non-Maximum Suppression (NMS)** - Removes duplicate detections automatically
 - **One box per object** - Clean, professional results
 - **Real-time filtering** - Instant updates when threshold changes
+
+### 📊 Enhanced Status Bar
+- **Device information** - Shows active training device (GPU/CPU)
+- **Live notifications** - Real-time feedback for all operations
+- **Status messages** - Clear indicators for saves, errors, and warnings
+- **Color-coded alerts** - Visual distinction between info, success, warning, and error
 
 ### 📚 Comprehensive Help System
 - **F1 Quick Help** - Press F1 anywhere for instant guidance
@@ -190,8 +217,11 @@ python image_recognition.py
 2. Select your trained model
 3. **Adjust confidence threshold** for desired detection sensitivity ⭐ NEW
 4. **Enable NMS** to remove duplicate detections ⭐ NEW
-5. Capture or load an image
-6. View clean, filtered recognition results
+5. Choose between:
+   - Single capture: Click "Capture & Recognize" for one-time detection
+   - **Live mode**: Enable "Live Recognition" for continuous monitoring ⭐ NEW v3.0
+6. **Save images with annotations** in COCO JSON or per-image format ⭐ NEW v3.0
+7. View clean, filtered recognition results
 
 ### 6. Monitor Progress
 - Check the "Dashboard" tab for project statistics
