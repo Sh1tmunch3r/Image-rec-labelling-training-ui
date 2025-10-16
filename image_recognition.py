@@ -256,9 +256,13 @@ class ImageRecognitionApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Image Labeling Studio Pro")
-        self.geometry("1400x900")
-        ctk.set_appearance_mode("System")
+        self.geometry("1500x950")
+        ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
+        
+        # Auto-save settings
+        self.auto_save_enabled = True
+        self.last_save_time = None
 
         if not os.path.exists(RECOGNIZER_FOLDER):
             os.makedirs(RECOGNIZER_FOLDER)
@@ -294,32 +298,49 @@ class ImageRecognitionApp(ctk.CTk):
         self.show_tooltips = True
         self.training_progress = 0
         self.training_metrics = {"loss": [], "epoch": 0}
+        
+        # Recognition settings
+        self.confidence_threshold = 0.5
+        self.iou_threshold = 0.5
+        self.nms_enabled = True
 
-        # Project bar with stats
-        self.project_frame = ctk.CTkFrame(self, height=60)
-        self.project_frame.pack(fill="x", padx=10, pady=5)
+        # Project bar with stats - Enhanced styling
+        self.project_frame = ctk.CTkFrame(self, height=65, corner_radius=10)
+        self.project_frame.pack(fill="x", padx=10, pady=8)
         
         # Left side - Project controls
         left_controls = ctk.CTkFrame(self.project_frame, fg_color="transparent")
-        left_controls.pack(side="left", fill="both", expand=False, padx=5, pady=5)
+        left_controls.pack(side="left", fill="both", expand=False, padx=8, pady=8)
         
-        ctk.CTkLabel(left_controls, text="Project:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
-        self.project_label = ctk.CTkLabel(left_controls, text="None")
+        ctk.CTkLabel(left_controls, text="📁 Project:", 
+                    font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=5)
+        self.project_label = ctk.CTkLabel(left_controls, text="None", 
+                                         font=ctk.CTkFont(size=12),
+                                         text_color="#3498DB")
         self.project_label.pack(side="left", padx=5)
-        self.new_project_button = ctk.CTkButton(left_controls, text="New Project", command=self.new_project, width=100)
-        self.new_project_button.pack(side="left", padx=2)
-        self.open_project_button = ctk.CTkButton(left_controls, text="Open Project", command=self.open_project, width=100)
-        self.open_project_button.pack(side="left", padx=2)
-        self.import_button = ctk.CTkButton(left_controls, text="Import", command=self.import_annotations, width=80)
-        self.import_button.pack(side="left", padx=2)
-        self.export_button = ctk.CTkButton(left_controls, text="Export", command=self.export_annotations, width=80)
-        self.export_button.pack(side="left", padx=2)
+        self.new_project_button = ctk.CTkButton(left_controls, text="➕ New", 
+                                                command=self.new_project, width=90,
+                                                height=32, corner_radius=8)
+        self.new_project_button.pack(side="left", padx=3)
+        self.open_project_button = ctk.CTkButton(left_controls, text="📂 Open", 
+                                                 command=self.open_project, width=90,
+                                                 height=32, corner_radius=8)
+        self.open_project_button.pack(side="left", padx=3)
+        self.import_button = ctk.CTkButton(left_controls, text="📥 Import", 
+                                          command=self.import_annotations, width=85,
+                                          height=32, corner_radius=8)
+        self.import_button.pack(side="left", padx=3)
+        self.export_button = ctk.CTkButton(left_controls, text="📤 Export", 
+                                          command=self.export_annotations, width=85,
+                                          height=32, corner_radius=8)
+        self.export_button.pack(side="left", padx=3)
         
         # Right side - Statistics
         self.stats_frame = ctk.CTkFrame(self.project_frame, fg_color="transparent")
-        self.stats_frame.pack(side="right", fill="both", expand=False, padx=5, pady=5)
-        self.stats_label = ctk.CTkLabel(self.stats_frame, text="Stats: No project loaded", 
-                                        font=ctk.CTkFont(size=11))
+        self.stats_frame.pack(side="right", fill="both", expand=False, padx=8, pady=8)
+        self.stats_label = ctk.CTkLabel(self.stats_frame, text="📊 No project loaded", 
+                                        font=ctk.CTkFont(size=12),
+                                        text_color="#95A5A6")
         self.stats_label.pack(side="right", padx=5)
 
         # Tabview
@@ -333,6 +354,7 @@ class ImageRecognitionApp(ctk.CTk):
 
         self.reload_recognizers()
         self.setup_keyboard_shortcuts()
+        self.setup_menu_bar()
         self.show_onboarding()
 
     def setup_recognize_tab(self):
@@ -345,27 +367,67 @@ class ImageRecognitionApp(ctk.CTk):
         left_panel.grid(row=0, column=0, sticky="ns", padx=10, pady=10)
         left_panel.grid_propagate(False)
 
-        ctk.CTkLabel(left_panel, text="Recognizers", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(18, 8))
+        ctk.CTkLabel(left_panel, text="🤖 Recognizers", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(15, 8))
         names = self.recognizer_manager.get_names()
         self.selected_recognizer = ctk.StringVar(value=names[0] if names else "")
-        self.recognizer_menu = ctk.CTkOptionMenu(left_panel, variable=self.selected_recognizer, values=names)
-        self.recognizer_menu.pack(pady=4)
+        self.recognizer_menu = ctk.CTkOptionMenu(left_panel, variable=self.selected_recognizer, 
+                                                 values=names, height=32, 
+                                                 font=ctk.CTkFont(size=12))
+        self.recognizer_menu.pack(pady=6, padx=10, fill="x")
+        
+        # Detection settings
+        ctk.CTkLabel(left_panel, text="⚙️ Detection Settings", 
+                    font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(15, 8))
+        
+        # Confidence threshold
+        conf_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
+        conf_frame.pack(pady=5, padx=10, fill="x")
+        ctk.CTkLabel(conf_frame, text="Confidence:", 
+                    font=ctk.CTkFont(size=12)).pack(side="left")
+        self.confidence_label = ctk.CTkLabel(conf_frame, text=f"{self.confidence_threshold:.2f}", 
+                                             width=45,
+                                             font=ctk.CTkFont(size=12, weight="bold"),
+                                             text_color="#3498DB")
+        self.confidence_label.pack(side="right")
+        self.confidence_slider = ctk.CTkSlider(left_panel, from_=0.1, to=0.95, number_of_steps=17,
+                                               command=self.update_confidence_threshold,
+                                               height=18, button_length=20)
+        self.confidence_slider.set(self.confidence_threshold)
+        self.confidence_slider.pack(pady=4, padx=10, fill="x")
+        
+        # NMS toggle
+        self.nms_var = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(left_panel, text="Remove Duplicates (NMS)", 
+                       variable=self.nms_var,
+                       font=ctk.CTkFont(size=11)).pack(pady=5)
 
-        self.rec_capture_button = ctk.CTkButton(left_panel, text="Capture & Recognize", command=self.rec_capture_and_recognize_thread)
-        self.rec_capture_button.pack(pady=18)
+        self.rec_capture_button = ctk.CTkButton(left_panel, text="📸 Capture & Recognize", 
+                                                command=self.rec_capture_and_recognize_thread,
+                                                font=ctk.CTkFont(size=14, weight="bold"),
+                                                height=40, corner_radius=10,
+                                                fg_color="#3498DB", hover_color="#2980B9")
+        self.rec_capture_button.pack(pady=15, padx=10, fill="x")
 
         self.rec_status_label = ctk.CTkLabel(left_panel, text="Ready", text_color="gray")
         self.rec_status_label.pack(pady=(0, 15))
 
-        ctk.CTkLabel(left_panel, text="Results", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 4))
+        ctk.CTkLabel(left_panel, text="📊 Results", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         self.rec_result_panel = ResultListBox(left_panel, self.rec_highlight_box)
         self.rec_result_panel.pack(fill="x", padx=10, pady=(0, 12))
 
-        self.rec_save_button = ctk.CTkButton(left_panel, text="Save Result", command=self.rec_save_image)
-        self.rec_save_button.pack(pady=6)
+        self.rec_save_button = ctk.CTkButton(left_panel, text="💾 Save Image", 
+                                             command=self.rec_save_image,
+                                             height=32, corner_radius=8,
+                                             font=ctk.CTkFont(size=12))
+        self.rec_save_button.pack(pady=5, padx=10, fill="x")
 
-        self.rec_copy_button = ctk.CTkButton(left_panel, text="Copy Labels", command=self.rec_copy_labels)
-        self.rec_copy_button.pack(pady=3)
+        self.rec_copy_button = ctk.CTkButton(left_panel, text="📋 Copy Labels", 
+                                             command=self.rec_copy_labels,
+                                             height=32, corner_radius=8,
+                                             font=ctk.CTkFont(size=12))
+        self.rec_copy_button.pack(pady=5, padx=10, fill="x")
 
         # Image frame
         image_frame = ctk.CTkFrame(tab)
@@ -391,32 +453,43 @@ class ImageRecognitionApp(ctk.CTk):
         left_panel.grid(row=0, column=0, sticky="ns", padx=10, pady=10)
         left_panel.grid_propagate(False)
 
-        # Annotation mode selector
-        ctk.CTkLabel(left_panel, text="Annotation Mode", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(10, 4))
+        # Annotation mode selector - Enhanced
+        ctk.CTkLabel(left_panel, text="🎨 Annotation Mode", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         mode_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
-        mode_frame.pack(pady=4)
+        mode_frame.pack(pady=5)
         self.mode_var = tk.StringVar(value=ANNOTATION_BOX)
-        ctk.CTkRadioButton(mode_frame, text="Bounding Box (B)", variable=self.mode_var, 
-                          value=ANNOTATION_BOX, command=self.change_annotation_mode).pack(side="left", padx=5)
-        ctk.CTkRadioButton(mode_frame, text="Polygon (P)", variable=self.mode_var, 
-                          value=ANNOTATION_POLYGON, command=self.change_annotation_mode).pack(side="left", padx=5)
+        ctk.CTkRadioButton(mode_frame, text="□ Box (B)", variable=self.mode_var, 
+                          value=ANNOTATION_BOX, command=self.change_annotation_mode,
+                          font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=2)
+        ctk.CTkRadioButton(mode_frame, text="⬡ Polygon (P)", variable=self.mode_var, 
+                          value=ANNOTATION_POLYGON, command=self.change_annotation_mode,
+                          font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=2)
 
-        # Classes section
-        ctk.CTkLabel(left_panel, text="Classes", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(10, 4))
-        self.add_class_button = ctk.CTkButton(left_panel, text="+ Add Class", command=self.add_class, width=120)
-        self.add_class_button.pack(pady=4)
+        # Classes section - Enhanced
+        ctk.CTkLabel(left_panel, text="🏷️ Classes", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
+        self.add_class_button = ctk.CTkButton(left_panel, text="➕ Add Class", 
+                                              command=self.add_class, width=140,
+                                              height=32, corner_radius=8,
+                                              font=ctk.CTkFont(size=12))
+        self.add_class_button.pack(pady=5)
 
         self.classes_listbox = tk.Listbox(left_panel, height=5)
         self.classes_listbox.pack(fill="x", padx=5, pady=4)
 
-        # Image navigation
-        ctk.CTkLabel(left_panel, text="Image Controls", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 4))
+        # Image navigation - Enhanced
+        ctk.CTkLabel(left_panel, text="🖼️ Navigation", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         nav_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
-        nav_frame.pack(pady=4)
-        ctk.CTkButton(nav_frame, text="◀ Prev", command=self.prev_image, width=60).pack(side="left", padx=2)
-        self.image_counter_label = ctk.CTkLabel(nav_frame, text="0/0", width=50)
+        nav_frame.pack(pady=5)
+        ctk.CTkButton(nav_frame, text="◀", command=self.prev_image, width=50,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        self.image_counter_label = ctk.CTkLabel(nav_frame, text="0/0", width=60,
+                                                font=ctk.CTkFont(size=13, weight="bold"))
         self.image_counter_label.pack(side="left", padx=5)
-        ctk.CTkButton(nav_frame, text="Next ▶", command=self.next_image, width=60).pack(side="left", padx=2)
+        ctk.CTkButton(nav_frame, text="▶", command=self.next_image, width=50,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
         
         btn_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
         btn_frame.pack(pady=2)
@@ -425,20 +498,26 @@ class ImageRecognitionApp(ctk.CTk):
         self.lab_load_button = ctk.CTkButton(btn_frame, text="📁 Load", command=self.lab_load_image, width=130)
         self.lab_load_button.pack(side="left", padx=2)
 
-        # Zoom controls
+        # Zoom controls - Enhanced
         zoom_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
-        zoom_frame.pack(pady=4)
-        ctk.CTkButton(zoom_frame, text="🔍+", command=self.zoom_in, width=40).pack(side="left", padx=2)
-        ctk.CTkButton(zoom_frame, text="🔍-", command=self.zoom_out, width=40).pack(side="left", padx=2)
-        ctk.CTkButton(zoom_frame, text="Reset", command=self.reset_zoom, width=60).pack(side="left", padx=2)
-        self.zoom_label = ctk.CTkLabel(zoom_frame, text="100%", width=50)
-        self.zoom_label.pack(side="left", padx=2)
+        zoom_frame.pack(pady=5)
+        ctk.CTkButton(zoom_frame, text="+", command=self.zoom_in, width=45,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        ctk.CTkButton(zoom_frame, text="−", command=self.zoom_out, width=45,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        ctk.CTkButton(zoom_frame, text="100%", command=self.reset_zoom, width=55,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        self.zoom_label = ctk.CTkLabel(zoom_frame, text="100%", width=50,
+                                       font=ctk.CTkFont(size=12, weight="bold"),
+                                       text_color="#3498DB")
+        self.zoom_label.pack(side="left", padx=3)
 
         self.lab_status_label = ctk.CTkLabel(left_panel, text="Ready", text_color="gray")
         self.lab_status_label.pack(pady=4)
 
-        # Annotations section
-        ctk.CTkLabel(left_panel, text="Annotations", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 4))
+        # Annotations section - Enhanced
+        ctk.CTkLabel(left_panel, text="📝 Annotations", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         self.lab_result_panel = ResultListBox(left_panel, self.lab_highlight_box)
         self.lab_result_panel.pack(fill="both", expand=True, padx=5, pady=(0, 8))
 
@@ -455,9 +534,15 @@ class ImageRecognitionApp(ctk.CTk):
         self.lab_delete_button = ctk.CTkButton(action_frame, text="Delete", command=self.lab_delete_selected, width=80)
         self.lab_delete_button.pack(side="left", padx=2)
 
+        # Auto-save toggle
+        self.auto_save_var = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(left_panel, text="Auto-save on image change", 
+                       variable=self.auto_save_var).pack(pady=3)
+        
         self.lab_save_button = ctk.CTkButton(left_panel, text="💾 Save Annotations", 
                                             command=self.lab_save_annotations, 
-                                            fg_color="green", hover_color="darkgreen")
+                                            fg_color="green", hover_color="darkgreen",
+                                            font=ctk.CTkFont(size=13, weight="bold"))
         self.lab_save_button.pack(pady=8, fill="x", padx=5)
 
         # Image frame
@@ -466,7 +551,7 @@ class ImageRecognitionApp(ctk.CTk):
         image_frame.rowconfigure(0, weight=1)
         image_frame.columnconfigure(0, weight=1)
 
-        self.lab_canvas = tk.Canvas(image_frame, bg="#1a1a1a", highlightthickness=0, cursor="crosshair")
+        self.lab_canvas = tk.Canvas(image_frame, bg="#0D1117", highlightthickness=0, cursor="crosshair")
         self.lab_canvas.grid(row=0, column=0, sticky="nsew")
         self.lab_canvas.bind("<Configure>", self.lab_on_canvas_resize)
         self.lab_canvas.bind("<Button-1>", self.lab_on_mouse_down)
@@ -477,8 +562,12 @@ class ImageRecognitionApp(ctk.CTk):
         self.lab_canvas.bind("<B2-Motion>", self.lab_pan_move)
         self.lab_canvas.bind("<ButtonRelease-2>", self.lab_end_pan)
         self.lab_canvas.bind("<MouseWheel>", self.lab_on_mousewheel)  # Scroll for zoom
+        self.lab_canvas.bind("<Motion>", self.lab_on_mouse_motion)  # Track mouse for preview
 
         self.lab_image_on_canvas = None
+        self.preview_rect = None
+        self.mouse_x = 0
+        self.mouse_y = 0
 
     def setup_train_tab(self):
         tab = self.tabview.add("Train")
@@ -498,6 +587,19 @@ class ImageRecognitionApp(ctk.CTk):
         ctk.CTkLabel(left_frame, text="Training Configuration", 
                     font=ctk.CTkFont(size=20, weight="bold")).pack(pady=15)
 
+        # Intelligent auto-settings button
+        auto_btn = ctk.CTkButton(left_frame, text="🧠 Auto-Configure Settings", 
+                                command=self.apply_intelligent_settings,
+                                fg_color="#9B59B6", hover_color="#8E44AD",
+                                font=ctk.CTkFont(size=13, weight="bold"))
+        auto_btn.pack(pady=(10, 5), padx=10, fill="x")
+        
+        self.auto_settings_label = ctk.CTkLabel(left_frame, text="", 
+                                                text_color="gray", 
+                                                font=ctk.CTkFont(size=10),
+                                                wraplength=240)
+        self.auto_settings_label.pack(pady=(0, 5))
+        
         # Hyperparameter presets
         ctk.CTkLabel(left_frame, text="Preset:").pack(pady=(10, 2))
         self.preset_var = tk.StringVar(value="Balanced")
@@ -668,7 +770,303 @@ class ImageRecognitionApp(ctk.CTk):
         self.bind(SHORTCUTS["reset_zoom"], lambda e: self.reset_zoom())
         self.bind(SHORTCUTS["box_mode"], lambda e: self.set_box_mode())
         self.bind(SHORTCUTS["polygon_mode"], lambda e: self.set_polygon_mode())
+        self.bind("<F1>", lambda e: self.show_help_dialog())
+    
+    def setup_menu_bar(self):
+        """Setup menu bar with File, Edit, View, Help menus"""
+        import tkinter.Menu as Menu
+        menubar = tk.Menu(self)
+        self.config(menu=menubar)
+        
+        # Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Training Guide (F1)", command=self.show_help_dialog)
+        help_menu.add_command(label="Keyboard Shortcuts", command=self.show_shortcuts_dialog)
+        help_menu.add_command(label="About", command=self.show_about_dialog)
 
+    def update_confidence_threshold(self, value):
+        """Update confidence threshold from slider"""
+        self.confidence_threshold = float(value)
+        self.confidence_label.configure(text=f"{self.confidence_threshold:.2f}")
+        # Reprocess last results if available
+        if hasattr(self, 'rec_last_image') and self.rec_last_image and hasattr(self, 'rec_last_results_raw'):
+            filtered_results = self.filter_detections(self.rec_last_results_raw)
+            self.rec_last_results = filtered_results
+            self.rec_display_image_with_boxes(self.rec_last_image, filtered_results, None)
+            self.rec_result_panel.update_results(filtered_results)
+    
+    def filter_detections(self, results):
+        """Filter detections based on confidence threshold and apply NMS"""
+        # Filter by confidence
+        filtered = [r for r in results if r.get('score', 1.0) >= self.confidence_threshold]
+        
+        # Apply NMS if enabled
+        if self.nms_var.get() and len(filtered) > 1:
+            filtered = self.apply_nms(filtered, self.iou_threshold)
+        
+        return filtered
+    
+    def apply_nms(self, detections, iou_threshold):
+        """Apply Non-Maximum Suppression to remove duplicate detections"""
+        if not detections:
+            return []
+        
+        # Sort by confidence score (highest first)
+        detections = sorted(detections, key=lambda x: x.get('score', 0), reverse=True)
+        
+        keep = []
+        while detections:
+            # Keep the detection with highest confidence
+            best = detections.pop(0)
+            keep.append(best)
+            
+            # Remove detections with high IoU with the best detection
+            filtered = []
+            best_box = best.get('box')
+            if not best_box:
+                continue
+                
+            for det in detections:
+                det_box = det.get('box')
+                if not det_box:
+                    continue
+                    
+                iou = self.calculate_iou(best_box, det_box)
+                if iou < iou_threshold:
+                    filtered.append(det)
+            
+            detections = filtered
+        
+        return keep
+    
+    def calculate_iou(self, box1, box2):
+        """Calculate Intersection over Union between two boxes"""
+        x1_min, y1_min, x1_max, y1_max = box1
+        x2_min, y2_min, x2_max, y2_max = box2
+        
+        # Calculate intersection
+        inter_x_min = max(x1_min, x2_min)
+        inter_y_min = max(y1_min, y2_min)
+        inter_x_max = min(x1_max, x2_max)
+        inter_y_max = min(y1_max, y2_max)
+        
+        if inter_x_max < inter_x_min or inter_y_max < inter_y_min:
+            return 0.0
+        
+        inter_area = (inter_x_max - inter_x_min) * (inter_y_max - inter_y_min)
+        
+        # Calculate union
+        box1_area = (x1_max - x1_min) * (y1_max - y1_min)
+        box2_area = (x2_max - x2_min) * (y2_max - y2_min)
+        union_area = box1_area + box2_area - inter_area
+        
+        if union_area == 0:
+            return 0.0
+        
+        return inter_area / union_area
+    
+    def show_help_dialog(self):
+        """Show comprehensive help dialog with training explanations"""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Training Guide & Help")
+        dialog.geometry("700x600")
+        dialog.grab_set()
+        
+        ctk.CTkLabel(dialog, text="📚 Training & Parameter Guide", 
+                    font=ctk.CTkFont(size=20, weight="bold")).pack(pady=15)
+        
+        text = ctk.CTkTextbox(dialog, width=650, height=500, font=("Segoe UI", 11))
+        text.pack(pady=10, padx=20, fill="both", expand=True)
+        text.insert("1.0", """
+═══════════════════════════════════════════════════════
+                    TRAINING PARAMETERS
+═══════════════════════════════════════════════════════
+
+🔄 EPOCHS
+What it is: An epoch is one complete pass through your entire dataset.
+• More epochs = model sees data more times = better learning
+• Too few: Model doesn't learn enough (underfitting)
+• Too many: Model memorizes data (overfitting)
+Recommended: 10-20 epochs for most projects
+
+📊 LEARNING RATE
+What it is: Controls how much the model adjusts with each update.
+• Higher (0.01): Faster learning but less stable
+• Lower (0.001): Slower but more stable convergence
+• Too high: Model fails to learn or diverges
+• Too low: Training takes forever
+Recommended: 0.005 for balanced results
+
+📦 BATCH SIZE
+What it is: Number of images processed before updating the model.
+• Larger: Faster training, more memory needed, more stable
+• Smaller: Slower training, less memory, noisier updates
+• Limited by GPU/CPU memory
+Recommended: 2-4 for typical hardware
+
+⚡ MOMENTUM
+What it is: Helps optimization by adding "velocity" to updates.
+• Smooths out noisy gradients
+• Helps escape local minima
+• Standard value works well for most cases
+Recommended: 0.9 (rarely needs changing)
+
+🎯 WEIGHT DECAY
+What it is: Regularization to prevent overfitting.
+• Penalizes large weights
+• Helps model generalize better
+• Too high: Model becomes too simple
+• Too low: Model may overfit
+Recommended: 0.0005 (rarely needs changing)
+
+🎲 DATA AUGMENTATION
+What it is: Random transformations applied during training.
+• Flips, rotations, color changes, etc.
+• Creates "new" data from existing images
+• Helps model generalize to variations
+• Highly recommended for small datasets
+Recommended: Keep enabled unless specific reason
+
+═══════════════════════════════════════════════════════
+                    INTELLIGENT TRAINING
+═══════════════════════════════════════════════════════
+
+The app automatically suggests settings based on your dataset:
+
+📁 SMALL DATASET (< 50 images)
+• More epochs to maximize learning
+• Data augmentation essential
+• Lower learning rate for stability
+
+📁 MEDIUM DATASET (50-200 images)
+• Balanced settings (default presets)
+• Standard augmentation
+• Medium learning rate
+
+📁 LARGE DATASET (> 200 images)
+• Can use higher learning rate
+• May reduce epochs (data is sufficient)
+• More aggressive batch sizes
+
+═══════════════════════════════════════════════════════
+                    TRAINING TIPS
+═══════════════════════════════════════════════════════
+
+✅ Monitor the loss: Should decrease over epochs
+✅ Save your model: Automatically saved after training
+✅ Test on new images: Use Recognition tab to validate
+✅ Iterate: Retrain with more data if results poor
+✅ Balance dataset: Similar number of images per class
+✅ Quality over quantity: Good annotations matter more
+
+═══════════════════════════════════════════════════════
+                    RECOGNITION SETTINGS
+═══════════════════════════════════════════════════════
+
+🎯 CONFIDENCE THRESHOLD
+• Minimum score for a detection to be shown
+• Higher = fewer but more confident detections
+• Lower = more detections but may include false positives
+Recommended: 0.5 for balanced results
+
+🔲 NON-MAXIMUM SUPPRESSION (NMS)
+• Removes duplicate/overlapping boxes for same object
+• Keeps only the best detection per object
+• Essential for clean results
+Recommended: Keep enabled
+
+═══════════════════════════════════════════════════════
+
+Press F1 anytime to open this guide!
+        """)
+        text.configure(state="disabled")
+        
+        ctk.CTkButton(dialog, text="Close", command=dialog.destroy, 
+                     height=35, font=ctk.CTkFont(size=13)).pack(pady=10)
+    
+    def show_shortcuts_dialog(self):
+        """Show keyboard shortcuts reference"""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Keyboard Shortcuts")
+        dialog.geometry("500x500")
+        dialog.grab_set()
+        
+        ctk.CTkLabel(dialog, text="⌨️ Keyboard Shortcuts", 
+                    font=ctk.CTkFont(size=18, weight="bold")).pack(pady=15)
+        
+        text = ctk.CTkTextbox(dialog, width=450, height=400, font=("Consolas", 11))
+        text.pack(pady=10, padx=20)
+        text.insert("1.0", """
+FILE OPERATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ctrl+S          Save annotations
+Ctrl+C          Copy annotations
+Ctrl+V          Paste annotations
+
+EDITING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ctrl+Z          Undo last action
+Ctrl+Y          Redo last undo
+Delete          Remove selected annotation
+
+NAVIGATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+← (Left)        Previous image
+→ (Right)       Next image
+
+VIEW CONTROLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ctrl +          Zoom in
+Ctrl -          Zoom out
+Ctrl 0          Reset zoom to 100%
+Mouse Wheel     Zoom in/out
+Middle Click    Pan (drag to move)
+
+ANNOTATION MODES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B               Box annotation mode
+P               Polygon annotation mode
+Right Click     Finish polygon
+
+HELP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+F1              Show training guide
+        """)
+        text.configure(state="disabled")
+        
+        ctk.CTkButton(dialog, text="Close", command=dialog.destroy, height=35).pack(pady=10)
+    
+    def show_about_dialog(self):
+        """Show about dialog"""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("About")
+        dialog.geometry("400x300")
+        dialog.grab_set()
+        
+        ctk.CTkLabel(dialog, text="Image Labeling Studio Pro", 
+                    font=ctk.CTkFont(size=20, weight="bold")).pack(pady=20)
+        
+        ctk.CTkLabel(dialog, text="Version 2.0", font=ctk.CTkFont(size=14)).pack(pady=5)
+        
+        ctk.CTkLabel(dialog, text="Professional Image Annotation\n& Model Training Tool", 
+                    font=ctk.CTkFont(size=12), text_color="gray").pack(pady=10)
+        
+        features = ctk.CTkTextbox(dialog, width=350, height=120)
+        features.pack(pady=10)
+        features.insert("1.0", """
+Features:
+• Advanced annotation tools (boxes & polygons)
+• Intelligent auto-training
+• Real-time recognition with NMS
+• Comprehensive statistics dashboard
+• Import/Export multiple formats
+• Full keyboard shortcuts support
+        """)
+        features.configure(state="disabled")
+        
+        ctk.CTkButton(dialog, text="Close", command=dialog.destroy, height=35).pack(pady=10)
+    
     def show_onboarding(self):
         """Show onboarding dialog for first-time users"""
         if self.show_tooltips and not os.path.exists(os.path.join(PROJECTS_FOLDER, ".onboarding_shown")):
@@ -695,6 +1093,8 @@ KEY FEATURES:
 ✓ Hyperparameter tuning
 ✓ Import/export in multiple formats
 ✓ Project statistics dashboard
+✓ Intelligent auto-training
+✓ Smart duplicate detection removal (NMS)
 
 QUICK START:
 1. Create a new project or open existing one
@@ -712,8 +1112,10 @@ KEYBOARD SHORTCUTS:
 • Delete: Remove selected annotation
 • ←/→: Navigate between images
 • Ctrl +/-: Zoom in/out
+• F1: Show training guide
 
 Check the Dashboard tab for project statistics!
+Press F1 anytime for detailed help on training!
             """)
             text.configure(state="disabled")
             
@@ -796,14 +1198,14 @@ Check the Dashboard tab for project statistics!
     def update_stats(self):
         """Update project statistics display"""
         if not self.current_project:
-            self.stats_label.configure(text="Stats: No project loaded")
+            self.stats_label.configure(text="📊 No project loaded", text_color="#95A5A6")
             return
         
         stats = ProjectStatistics.get_stats(self.current_project)
-        stats_text = (f"Images: {stats['annotated_images']}/{stats['total_images']} | "
-                     f"Annotations: {stats['total_annotations']} | "
+        stats_text = (f"📊 Images: {stats['annotated_images']}/{stats['total_images']} • "
+                     f"Annotations: {stats['total_annotations']} • "
                      f"Classes: {len(stats['classes'])}")
-        self.stats_label.configure(text=stats_text)
+        self.stats_label.configure(text=stats_text, text_color="#2ECC71")
 
     def update_dashboard(self):
         """Update dashboard with current project statistics"""
@@ -852,6 +1254,9 @@ Check the Dashboard tab for project statistics!
         """Navigate to previous image"""
         if not self.current_project or not self.image_list:
             return
+        # Auto-save current image if enabled
+        if self.auto_save_var.get() and self.current_image_path and self.annotations:
+            self.lab_save_annotations(silent=True)
         if self.current_image_index > 0:
             self.current_image_index -= 1
             self.load_image_by_index(self.current_image_index)
@@ -860,6 +1265,9 @@ Check the Dashboard tab for project statistics!
         """Navigate to next image"""
         if not self.current_project or not self.image_list:
             return
+        # Auto-save current image if enabled
+        if self.auto_save_var.get() and self.current_image_path and self.annotations:
+            self.lab_save_annotations(silent=True)
         if self.current_image_index < len(self.image_list) - 1:
             self.current_image_index += 1
             self.load_image_by_index(self.current_image_index)
@@ -1120,6 +1528,107 @@ Class Distribution:
             self.lr_entry.insert(0, "0.001")
             self.batch_entry.delete(0, tk.END)
             self.batch_entry.insert(0, "2")
+    
+    def calculate_intelligent_settings(self):
+        """Automatically determine best training settings based on dataset"""
+        if not self.current_project:
+            return None
+        
+        # Count annotated images
+        ann_dir = os.path.join(self.current_project, "annotations")
+        if not os.path.exists(ann_dir):
+            return None
+        
+        num_images = len([f for f in os.listdir(ann_dir) if f.endswith('.json')])
+        
+        # Count annotations per image (average)
+        total_annotations = 0
+        for ann_file in os.listdir(ann_dir):
+            if ann_file.endswith('.json'):
+                try:
+                    with open(os.path.join(ann_dir, ann_file), 'r') as f:
+                        data = json.load(f)
+                        total_annotations += len(data.get('annotations', []))
+                except:
+                    pass
+        
+        avg_annotations = total_annotations / num_images if num_images > 0 else 0
+        num_classes = len(self.classes) if self.classes else 1
+        
+        # Intelligent setting calculation
+        settings = {}
+        
+        # Small dataset (< 50 images)
+        if num_images < 50:
+            settings['epochs'] = min(25, max(15, 30 - num_images // 5))
+            settings['lr'] = 0.003
+            settings['batch_size'] = min(2, num_images // 10 + 1)
+            settings['reason'] = "Small dataset: More epochs, lower LR for stability"
+        
+        # Medium dataset (50-200 images)
+        elif num_images < 200:
+            settings['epochs'] = 15
+            settings['lr'] = 0.005
+            settings['batch_size'] = min(4, num_images // 30 + 2)
+            settings['reason'] = "Medium dataset: Balanced settings"
+        
+        # Large dataset (>= 200 images)
+        else:
+            settings['epochs'] = 12
+            settings['lr'] = 0.007
+            settings['batch_size'] = min(8, num_images // 50 + 2)
+            settings['reason'] = "Large dataset: Can use higher LR and batch size"
+        
+        # Adjust for complexity
+        if avg_annotations > 5:
+            settings['epochs'] += 3
+            settings['reason'] += " + complex images"
+        
+        if num_classes > 10:
+            settings['epochs'] += 2
+            settings['reason'] += " + many classes"
+        
+        settings['num_images'] = num_images
+        settings['num_classes'] = num_classes
+        settings['avg_annotations'] = avg_annotations
+        
+        return settings
+    
+    def apply_intelligent_settings(self):
+        """Apply intelligent auto-configured training settings"""
+        if not self.current_project:
+            showerror("Error", "Please open a project first.")
+            return
+        
+        settings = self.calculate_intelligent_settings()
+        if not settings:
+            showerror("Error", "No annotated images found. Please annotate some images first.")
+            return
+        
+        # Apply settings
+        self.epochs_entry.delete(0, tk.END)
+        self.epochs_entry.insert(0, str(settings['epochs']))
+        
+        self.lr_entry.delete(0, tk.END)
+        self.lr_entry.insert(0, str(settings['lr']))
+        
+        self.batch_entry.delete(0, tk.END)
+        self.batch_entry.insert(0, str(settings['batch_size']))
+        
+        # Show explanation
+        msg = f"✓ Auto-configured for {settings['num_images']} images\n{settings['reason']}"
+        self.auto_settings_label.configure(text=msg, text_color="#2ECC71")
+        
+        showinfo("Intelligent Settings Applied", 
+                f"Settings optimized for your dataset:\n\n"
+                f"• {settings['num_images']} annotated images\n"
+                f"• {settings['num_classes']} classes\n"
+                f"• {settings['avg_annotations']:.1f} avg annotations/image\n\n"
+                f"Applied settings:\n"
+                f"• Epochs: {settings['epochs']}\n"
+                f"• Learning Rate: {settings['lr']}\n"
+                f"• Batch Size: {settings['batch_size']}\n\n"
+                f"Reason: {settings['reason']}")
 
     def lab_capture_image_thread(self):
         if not self.current_project:
@@ -1270,7 +1779,7 @@ Class Distribution:
             self.start_x = self.lab_canvas.canvasx(event.x)
             self.start_y = self.lab_canvas.canvasy(event.y)
             self.rect = self.lab_canvas.create_rectangle(self.start_x, self.start_y, self.start_x, self.start_y, 
-                                                         outline='white', width=2, dash=(4,4))
+                                                         outline='#00FF00', width=3, dash=(8, 4))
         elif self.annotation_mode == ANNOTATION_POLYGON:
             # Add point to polygon
             x = self.lab_canvas.canvasx(event.x)
@@ -1278,20 +1787,43 @@ Class Distribution:
             self.polygon_points.append((x, y))
             
             # Draw point
-            point_item = self.lab_canvas.create_oval(x-3, y-3, x+3, y+3, fill='white', outline='yellow')
+            point_item = self.lab_canvas.create_oval(x-4, y-4, x+4, y+4, fill='#00FF00', outline='#FFFF00', width=2)
             self.temp_polygon_items.append(point_item)
             
             # Draw line to previous point
             if len(self.polygon_points) > 1:
                 prev = self.polygon_points[-2]
-                line_item = self.lab_canvas.create_line(prev[0], prev[1], x, y, fill='white', width=2)
+                line_item = self.lab_canvas.create_line(prev[0], prev[1], x, y, fill='#00FF00', width=3)
                 self.temp_polygon_items.append(line_item)
 
+    def lab_on_mouse_motion(self, event):
+        """Track mouse position for preview"""
+        self.mouse_x = event.x
+        self.mouse_y = event.y
+    
     def lab_on_mouse_move(self, event):
         if self.drawing and self.annotation_mode == ANNOTATION_BOX:
             self.cur_x = self.lab_canvas.canvasx(event.x)
             self.cur_y = self.lab_canvas.canvasy(event.y)
             self.lab_canvas.coords(self.rect, self.start_x, self.start_y, self.cur_x, self.cur_y)
+            # Show size preview with background
+            width = abs(self.cur_x - self.start_x)
+            height = abs(self.cur_y - self.start_y)
+            if hasattr(self, 'size_text'):
+                self.lab_canvas.delete(self.size_text)
+            if hasattr(self, 'size_bg'):
+                self.lab_canvas.delete(self.size_bg)
+            
+            # Create text background
+            text_x = self.cur_x + 15
+            text_y = self.cur_y + 15
+            self.size_bg = self.lab_canvas.create_rectangle(
+                text_x - 5, text_y - 12, text_x + 70, text_y + 5,
+                fill="#2C3E50", outline="#00FF00", width=1)
+            self.size_text = self.lab_canvas.create_text(
+                text_x, text_y - 4, 
+                text=f"{int(width)}×{int(height)} px", 
+                fill="#00FF00", font=("Arial", 11, "bold"), anchor="w")
 
     def lab_on_mouse_up(self, event):
         if self.drawing and self.annotation_mode == ANNOTATION_BOX:
@@ -1299,6 +1831,10 @@ Class Distribution:
             self.cur_x = self.lab_canvas.canvasx(event.x)
             self.cur_y = self.lab_canvas.canvasy(event.y)
             self.lab_canvas.delete(self.rect)
+            if hasattr(self, 'size_text'):
+                self.lab_canvas.delete(self.size_text)
+            if hasattr(self, 'size_bg'):
+                self.lab_canvas.delete(self.size_bg)
             self.rect = None
 
             # Calculate box in original coords
@@ -1433,9 +1969,10 @@ Class Distribution:
             self.lab_display_image_with_boxes(None)
             self.lab_status_label.configure(text="Deleted", text_color="orange")
 
-    def lab_save_annotations(self):
+    def lab_save_annotations(self, silent=False):
         if not self.current_image_path:
-            self.lab_status_label.configure(text="No image loaded", text_color="red")
+            if not silent:
+                self.lab_status_label.configure(text="No image loaded", text_color="red")
             return
         ann_name = os.path.splitext(os.path.basename(self.current_image_path))[0] + ".json"
         ann_path = os.path.join(self.current_project, "annotations", ann_name)
@@ -1446,7 +1983,9 @@ Class Distribution:
         }
         with open(ann_path, "w") as f:
             json.dump(data, f, indent=2)
-        self.lab_status_label.configure(text="✓ Saved successfully", text_color="green")
+        if not silent:
+            self.lab_status_label.configure(text="✓ Saved successfully", text_color="green")
+        self.last_save_time = time.time()
         self.update_stats()
 
     def train_model_thread(self):
@@ -1619,12 +2158,17 @@ class Recognizer:
         img_np = np.array(img)
         self.rec_status_label.configure(text="Recognizing...", text_color="#E67E22")
         rec_name = self.selected_recognizer.get()
-        results = self.recognizer_manager.recognize(rec_name, img_np)
+        results_raw = self.recognizer_manager.recognize(rec_name, img_np)
+        
+        # Store raw results and apply filtering
+        self.rec_last_results_raw = results_raw
+        results = self.filter_detections(results_raw)
+        
         self.rec_last_image = img
         self.rec_last_results = results
         self.rec_display_image_with_boxes(img, results, None)
         self.rec_result_panel.update_results(results)
-        self.rec_status_label.configure(text="Done", text_color="green")
+        self.rec_status_label.configure(text=f"Done - {len(results)} detections", text_color="green")
 
     def rec_display_image_with_boxes(self, pil_image, results, highlight_idx):
         w, h = self.rec_canvas.winfo_width(), self.rec_canvas.winfo_height()
