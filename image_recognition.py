@@ -367,48 +367,67 @@ class ImageRecognitionApp(ctk.CTk):
         left_panel.grid(row=0, column=0, sticky="ns", padx=10, pady=10)
         left_panel.grid_propagate(False)
 
-        ctk.CTkLabel(left_panel, text="Recognizers", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(18, 8))
+        ctk.CTkLabel(left_panel, text="🤖 Recognizers", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(15, 8))
         names = self.recognizer_manager.get_names()
         self.selected_recognizer = ctk.StringVar(value=names[0] if names else "")
-        self.recognizer_menu = ctk.CTkOptionMenu(left_panel, variable=self.selected_recognizer, values=names)
-        self.recognizer_menu.pack(pady=4)
+        self.recognizer_menu = ctk.CTkOptionMenu(left_panel, variable=self.selected_recognizer, 
+                                                 values=names, height=32, 
+                                                 font=ctk.CTkFont(size=12))
+        self.recognizer_menu.pack(pady=6, padx=10, fill="x")
         
         # Detection settings
-        ctk.CTkLabel(left_panel, text="Detection Settings", font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(15, 5))
+        ctk.CTkLabel(left_panel, text="⚙️ Detection Settings", 
+                    font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(15, 8))
         
         # Confidence threshold
         conf_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
-        conf_frame.pack(pady=3, padx=10, fill="x")
-        ctk.CTkLabel(conf_frame, text="Confidence:").pack(side="left")
-        self.confidence_label = ctk.CTkLabel(conf_frame, text=f"{self.confidence_threshold:.2f}", width=40)
+        conf_frame.pack(pady=5, padx=10, fill="x")
+        ctk.CTkLabel(conf_frame, text="Confidence:", 
+                    font=ctk.CTkFont(size=12)).pack(side="left")
+        self.confidence_label = ctk.CTkLabel(conf_frame, text=f"{self.confidence_threshold:.2f}", 
+                                             width=45,
+                                             font=ctk.CTkFont(size=12, weight="bold"),
+                                             text_color="#3498DB")
         self.confidence_label.pack(side="right")
         self.confidence_slider = ctk.CTkSlider(left_panel, from_=0.1, to=0.95, number_of_steps=17,
-                                               command=self.update_confidence_threshold)
+                                               command=self.update_confidence_threshold,
+                                               height=18, button_length=20)
         self.confidence_slider.set(self.confidence_threshold)
-        self.confidence_slider.pack(pady=2, padx=10, fill="x")
+        self.confidence_slider.pack(pady=4, padx=10, fill="x")
         
         # NMS toggle
         self.nms_var = tk.BooleanVar(value=True)
-        ctk.CTkCheckBox(left_panel, text="Remove Duplicate Boxes (NMS)", 
-                       variable=self.nms_var).pack(pady=3)
+        ctk.CTkCheckBox(left_panel, text="Remove Duplicates (NMS)", 
+                       variable=self.nms_var,
+                       font=ctk.CTkFont(size=11)).pack(pady=5)
 
-        self.rec_capture_button = ctk.CTkButton(left_panel, text="Capture & Recognize", 
+        self.rec_capture_button = ctk.CTkButton(left_panel, text="📸 Capture & Recognize", 
                                                 command=self.rec_capture_and_recognize_thread,
-                                                font=ctk.CTkFont(size=13, weight="bold"))
-        self.rec_capture_button.pack(pady=12)
+                                                font=ctk.CTkFont(size=14, weight="bold"),
+                                                height=40, corner_radius=10,
+                                                fg_color="#3498DB", hover_color="#2980B9")
+        self.rec_capture_button.pack(pady=15, padx=10, fill="x")
 
         self.rec_status_label = ctk.CTkLabel(left_panel, text="Ready", text_color="gray")
         self.rec_status_label.pack(pady=(0, 15))
 
-        ctk.CTkLabel(left_panel, text="Results", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 4))
+        ctk.CTkLabel(left_panel, text="📊 Results", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         self.rec_result_panel = ResultListBox(left_panel, self.rec_highlight_box)
         self.rec_result_panel.pack(fill="x", padx=10, pady=(0, 12))
 
-        self.rec_save_button = ctk.CTkButton(left_panel, text="Save Result", command=self.rec_save_image)
-        self.rec_save_button.pack(pady=6)
+        self.rec_save_button = ctk.CTkButton(left_panel, text="💾 Save Image", 
+                                             command=self.rec_save_image,
+                                             height=32, corner_radius=8,
+                                             font=ctk.CTkFont(size=12))
+        self.rec_save_button.pack(pady=5, padx=10, fill="x")
 
-        self.rec_copy_button = ctk.CTkButton(left_panel, text="Copy Labels", command=self.rec_copy_labels)
-        self.rec_copy_button.pack(pady=3)
+        self.rec_copy_button = ctk.CTkButton(left_panel, text="📋 Copy Labels", 
+                                             command=self.rec_copy_labels,
+                                             height=32, corner_radius=8,
+                                             font=ctk.CTkFont(size=12))
+        self.rec_copy_button.pack(pady=5, padx=10, fill="x")
 
         # Image frame
         image_frame = ctk.CTkFrame(tab)
@@ -434,32 +453,43 @@ class ImageRecognitionApp(ctk.CTk):
         left_panel.grid(row=0, column=0, sticky="ns", padx=10, pady=10)
         left_panel.grid_propagate(False)
 
-        # Annotation mode selector
-        ctk.CTkLabel(left_panel, text="Annotation Mode", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(10, 4))
+        # Annotation mode selector - Enhanced
+        ctk.CTkLabel(left_panel, text="🎨 Annotation Mode", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         mode_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
-        mode_frame.pack(pady=4)
+        mode_frame.pack(pady=5)
         self.mode_var = tk.StringVar(value=ANNOTATION_BOX)
-        ctk.CTkRadioButton(mode_frame, text="Bounding Box (B)", variable=self.mode_var, 
-                          value=ANNOTATION_BOX, command=self.change_annotation_mode).pack(side="left", padx=5)
-        ctk.CTkRadioButton(mode_frame, text="Polygon (P)", variable=self.mode_var, 
-                          value=ANNOTATION_POLYGON, command=self.change_annotation_mode).pack(side="left", padx=5)
+        ctk.CTkRadioButton(mode_frame, text="□ Box (B)", variable=self.mode_var, 
+                          value=ANNOTATION_BOX, command=self.change_annotation_mode,
+                          font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=2)
+        ctk.CTkRadioButton(mode_frame, text="⬡ Polygon (P)", variable=self.mode_var, 
+                          value=ANNOTATION_POLYGON, command=self.change_annotation_mode,
+                          font=ctk.CTkFont(size=12)).pack(anchor="w", padx=10, pady=2)
 
-        # Classes section
-        ctk.CTkLabel(left_panel, text="Classes", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(10, 4))
-        self.add_class_button = ctk.CTkButton(left_panel, text="+ Add Class", command=self.add_class, width=120)
-        self.add_class_button.pack(pady=4)
+        # Classes section - Enhanced
+        ctk.CTkLabel(left_panel, text="🏷️ Classes", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
+        self.add_class_button = ctk.CTkButton(left_panel, text="➕ Add Class", 
+                                              command=self.add_class, width=140,
+                                              height=32, corner_radius=8,
+                                              font=ctk.CTkFont(size=12))
+        self.add_class_button.pack(pady=5)
 
         self.classes_listbox = tk.Listbox(left_panel, height=5)
         self.classes_listbox.pack(fill="x", padx=5, pady=4)
 
-        # Image navigation
-        ctk.CTkLabel(left_panel, text="Image Controls", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 4))
+        # Image navigation - Enhanced
+        ctk.CTkLabel(left_panel, text="🖼️ Navigation", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         nav_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
-        nav_frame.pack(pady=4)
-        ctk.CTkButton(nav_frame, text="◀ Prev", command=self.prev_image, width=60).pack(side="left", padx=2)
-        self.image_counter_label = ctk.CTkLabel(nav_frame, text="0/0", width=50)
+        nav_frame.pack(pady=5)
+        ctk.CTkButton(nav_frame, text="◀", command=self.prev_image, width=50,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        self.image_counter_label = ctk.CTkLabel(nav_frame, text="0/0", width=60,
+                                                font=ctk.CTkFont(size=13, weight="bold"))
         self.image_counter_label.pack(side="left", padx=5)
-        ctk.CTkButton(nav_frame, text="Next ▶", command=self.next_image, width=60).pack(side="left", padx=2)
+        ctk.CTkButton(nav_frame, text="▶", command=self.next_image, width=50,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
         
         btn_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
         btn_frame.pack(pady=2)
@@ -468,20 +498,26 @@ class ImageRecognitionApp(ctk.CTk):
         self.lab_load_button = ctk.CTkButton(btn_frame, text="📁 Load", command=self.lab_load_image, width=130)
         self.lab_load_button.pack(side="left", padx=2)
 
-        # Zoom controls
+        # Zoom controls - Enhanced
         zoom_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
-        zoom_frame.pack(pady=4)
-        ctk.CTkButton(zoom_frame, text="🔍+", command=self.zoom_in, width=40).pack(side="left", padx=2)
-        ctk.CTkButton(zoom_frame, text="🔍-", command=self.zoom_out, width=40).pack(side="left", padx=2)
-        ctk.CTkButton(zoom_frame, text="Reset", command=self.reset_zoom, width=60).pack(side="left", padx=2)
-        self.zoom_label = ctk.CTkLabel(zoom_frame, text="100%", width=50)
-        self.zoom_label.pack(side="left", padx=2)
+        zoom_frame.pack(pady=5)
+        ctk.CTkButton(zoom_frame, text="+", command=self.zoom_in, width=45,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        ctk.CTkButton(zoom_frame, text="−", command=self.zoom_out, width=45,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        ctk.CTkButton(zoom_frame, text="100%", command=self.reset_zoom, width=55,
+                     height=32, corner_radius=8).pack(side="left", padx=2)
+        self.zoom_label = ctk.CTkLabel(zoom_frame, text="100%", width=50,
+                                       font=ctk.CTkFont(size=12, weight="bold"),
+                                       text_color="#3498DB")
+        self.zoom_label.pack(side="left", padx=3)
 
         self.lab_status_label = ctk.CTkLabel(left_panel, text="Ready", text_color="gray")
         self.lab_status_label.pack(pady=4)
 
-        # Annotations section
-        ctk.CTkLabel(left_panel, text="Annotations", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 4))
+        # Annotations section - Enhanced
+        ctk.CTkLabel(left_panel, text="📝 Annotations", 
+                    font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(12, 6))
         self.lab_result_panel = ResultListBox(left_panel, self.lab_highlight_box)
         self.lab_result_panel.pack(fill="both", expand=True, padx=5, pady=(0, 8))
 
@@ -1743,7 +1779,7 @@ Class Distribution:
             self.start_x = self.lab_canvas.canvasx(event.x)
             self.start_y = self.lab_canvas.canvasy(event.y)
             self.rect = self.lab_canvas.create_rectangle(self.start_x, self.start_y, self.start_x, self.start_y, 
-                                                         outline='white', width=2, dash=(4,4))
+                                                         outline='#00FF00', width=3, dash=(8, 4))
         elif self.annotation_mode == ANNOTATION_POLYGON:
             # Add point to polygon
             x = self.lab_canvas.canvasx(event.x)
@@ -1751,13 +1787,13 @@ Class Distribution:
             self.polygon_points.append((x, y))
             
             # Draw point
-            point_item = self.lab_canvas.create_oval(x-3, y-3, x+3, y+3, fill='white', outline='yellow')
+            point_item = self.lab_canvas.create_oval(x-4, y-4, x+4, y+4, fill='#00FF00', outline='#FFFF00', width=2)
             self.temp_polygon_items.append(point_item)
             
             # Draw line to previous point
             if len(self.polygon_points) > 1:
                 prev = self.polygon_points[-2]
-                line_item = self.lab_canvas.create_line(prev[0], prev[1], x, y, fill='white', width=2)
+                line_item = self.lab_canvas.create_line(prev[0], prev[1], x, y, fill='#00FF00', width=3)
                 self.temp_polygon_items.append(line_item)
 
     def lab_on_mouse_motion(self, event):
@@ -1770,15 +1806,24 @@ Class Distribution:
             self.cur_x = self.lab_canvas.canvasx(event.x)
             self.cur_y = self.lab_canvas.canvasy(event.y)
             self.lab_canvas.coords(self.rect, self.start_x, self.start_y, self.cur_x, self.cur_y)
-            # Show size preview
+            # Show size preview with background
             width = abs(self.cur_x - self.start_x)
             height = abs(self.cur_y - self.start_y)
             if hasattr(self, 'size_text'):
                 self.lab_canvas.delete(self.size_text)
+            if hasattr(self, 'size_bg'):
+                self.lab_canvas.delete(self.size_bg)
+            
+            # Create text background
+            text_x = self.cur_x + 15
+            text_y = self.cur_y + 15
+            self.size_bg = self.lab_canvas.create_rectangle(
+                text_x - 5, text_y - 12, text_x + 70, text_y + 5,
+                fill="#2C3E50", outline="#00FF00", width=1)
             self.size_text = self.lab_canvas.create_text(
-                self.cur_x + 10, self.cur_y + 10, 
-                text=f"{int(width)}×{int(height)}", 
-                fill="white", font=("Arial", 10, "bold"))
+                text_x, text_y - 4, 
+                text=f"{int(width)}×{int(height)} px", 
+                fill="#00FF00", font=("Arial", 11, "bold"), anchor="w")
 
     def lab_on_mouse_up(self, event):
         if self.drawing and self.annotation_mode == ANNOTATION_BOX:
@@ -1788,6 +1833,8 @@ Class Distribution:
             self.lab_canvas.delete(self.rect)
             if hasattr(self, 'size_text'):
                 self.lab_canvas.delete(self.size_text)
+            if hasattr(self, 'size_bg'):
+                self.lab_canvas.delete(self.size_bg)
             self.rect = None
 
             # Calculate box in original coords
