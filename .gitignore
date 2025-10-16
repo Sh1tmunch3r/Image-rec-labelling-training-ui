@@ -40,6 +40,9 @@ projects/*/annotations/*.json
 projects/*/model.pth
 projects/.onboarding_shown
 
+# Config (keep template only)
+config/settings.json
+
 # Temporary files
 *.tmp
 *.bak

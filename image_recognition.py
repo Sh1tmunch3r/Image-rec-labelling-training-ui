@@ -28,6 +28,9 @@ try:
 except:
     pass  # Will use system PATH
 
+# Import device utilities
+from device_utils import load_settings, save_settings, get_device
+
 RECOGNIZER_FOLDER = "recognizers"
 PROJECTS_FOLDER = "projects"
 BOX_COLORS = [
@@ -260,13 +263,16 @@ class ImageRecognitionApp(ctk.CTk):
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
         
+        # Load application settings
+        self.settings = load_settings()
+        
         # Auto-save settings
         self.auto_save_enabled = True
         self.last_save_time = None
         
         # Device settings for training
         self.detect_device()
-        self.device_override = None  # None = auto, 'cuda' = force GPU, 'cpu' = force CPU
+        self.device_preference = self.settings.get('device_preference', 'auto')
         
         # Live recognition settings
         self.live_recognition_active = False
@@ -373,7 +379,7 @@ class ImageRecognitionApp(ctk.CTk):
         try:
             if torch.cuda.is_available():
                 self.detected_device = 'cuda'
-                self.device_name = torch.cuda.get_device_name(0)
+                self.device_name = f"CUDA ({torch.cuda.get_device_name(0)})"
             else:
                 self.detected_device = 'cpu'
                 self.device_name = 'CPU'
@@ -383,21 +389,32 @@ class ImageRecognitionApp(ctk.CTk):
             self.device_name = 'CPU (fallback)'
     
     def get_training_device(self):
-        """Get device for training based on override or auto-detection"""
-        if self.device_override:
-            device_str = self.device_override
-        else:
-            device_str = self.detected_device
+        """Get device for training based on preference setting"""
+        device, device_name, warning = get_device(self.device_preference)
         
-        try:
-            device = torch.device(device_str)
-            # Test if device is actually available
-            torch.zeros(1).to(device)
-            return device
-        except Exception as e:
-            print(f"Failed to use {device_str}, falling back to CPU: {e}")
-            self.show_notification(f"⚠️ GPU initialization failed, using CPU", "warning")
-            return torch.device('cpu')
+        if warning:
+            print(f"Warning: {warning}")
+            self.show_notification(f"⚠️ {warning}", "warning")
+        
+        return device, device_name
+    
+    def save_device_preference(self, preference):
+        """Save device preference to settings"""
+        self.device_preference = preference
+        self.settings['device_preference'] = preference
+        save_settings(self.settings)
+        self.update_detected_device_display()
+    
+    def update_detected_device_display(self):
+        """Update the detected device display in Training tab"""
+        if hasattr(self, 'detected_device_label'):
+            device, device_name, warning = get_device(self.device_preference)
+            if warning:
+                display_text = f"Detected: {self.device_name} | ⚠️ {warning}"
+                self.detected_device_label.configure(text=display_text, text_color="#E67E22")
+            else:
+                display_text = f"Detected: {self.device_name}"
+                self.detected_device_label.configure(text=display_text, text_color="#95A5A6")
     
     def setup_status_bar(self):
         """Setup status bar at bottom of window"""
@@ -767,15 +784,65 @@ class ImageRecognitionApp(ctk.CTk):
         ctk.CTkCheckBox(params_frame, text="Data Augmentation", 
                        variable=self.augment_var).grid(row=5, column=0, columnspan=2, pady=10)
         
-        # Device selection
-        ctk.CTkLabel(params_frame, text="Device:").grid(row=6, column=0, sticky="w", pady=5, padx=5)
-        self.device_var = tk.StringVar(value="Auto")
-        device_options = ["Auto", "Force CPU"]
+        # Compute Device selection - Enhanced with tri-state control
+        device_frame = ctk.CTkFrame(params_frame, fg_color="transparent")
+        device_frame.grid(row=6, column=0, columnspan=2, sticky="ew", pady=10, padx=5)
+        device_frame.columnconfigure(1, weight=1)
+        
+        ctk.CTkLabel(device_frame, text="Compute Device:", 
+                    font=ctk.CTkFont(size=12, weight="bold")).grid(row=0, column=0, sticky="w", pady=2)
+        
+        # Info icon with tooltip
+        info_label = ctk.CTkLabel(device_frame, text="ℹ️", 
+                                 font=ctk.CTkFont(size=12),
+                                 text_color="#3498DB",
+                                 cursor="hand2")
+        info_label.grid(row=0, column=1, sticky="w", padx=3)
+        
+        # Create tooltip on hover
+        def show_device_info(event):
+            info_text = ("Auto: Uses GPU if available, otherwise CPU\n"
+                        "Force GPU: Always tries GPU, falls back to CPU if unavailable\n"
+                        "Force CPU: Always uses CPU for training")
+            # Simple notification instead of tooltip
+            self.show_notification(info_text.replace('\n', ' | '), "info")
+        
+        info_label.bind("<Button-1>", show_device_info)
+        
+        # Map preference values to UI labels
+        pref_to_label = {
+            'auto': 'Auto (recommended)',
+            'force_gpu': 'Force GPU',
+            'force_cpu': 'Force CPU'
+        }
+        label_to_pref = {v: k for k, v in pref_to_label.items()}
+        
+        # Set initial value from loaded settings
+        initial_label = pref_to_label.get(self.device_preference, 'Auto (recommended)')
+        self.device_var = tk.StringVar(value=initial_label)
+        
+        # Create device options menu
+        device_options = ["Auto (recommended)", "Force CPU"]
         if torch.cuda.is_available():
-            device_options.append("Force GPU")
-        self.device_menu = ctk.CTkOptionMenu(params_frame, variable=self.device_var,
-                                            values=device_options, width=100)
-        self.device_menu.grid(row=6, column=1, pady=5, padx=5)
+            device_options.insert(1, "Force GPU")
+        
+        def on_device_change(*args):
+            selected_label = self.device_var.get()
+            preference = label_to_pref.get(selected_label, 'auto')
+            self.save_device_preference(preference)
+        
+        self.device_var.trace('w', on_device_change)
+        
+        self.device_menu = ctk.CTkOptionMenu(device_frame, variable=self.device_var,
+                                            values=device_options, width=180)
+        self.device_menu.grid(row=1, column=0, columnspan=2, pady=3, sticky="ew")
+        
+        # Detected device display
+        self.detected_device_label = ctk.CTkLabel(device_frame, 
+                                                  text=f"Detected: {self.device_name}",
+                                                  font=ctk.CTkFont(size=10),
+                                                  text_color="#95A5A6")
+        self.detected_device_label.grid(row=2, column=0, columnspan=2, pady=2, sticky="w")
 
         self.train_button = ctk.CTkButton(left_frame, text="🚀 Start Training",
                                          command=self.train_model_thread,
@@ -2169,21 +2236,13 @@ Class Distribution:
             momentum = float(self.momentum_entry.get() or 0.9)
             weight_decay = float(self.weight_decay_entry.get() or 0.0005)
             
-            # Get device preference
-            device_pref = self.device_var.get()
-            if device_pref == "Force CPU":
-                self.device_override = 'cpu'
-            elif device_pref == "Force GPU":
-                self.device_override = 'cuda'
-            else:
-                self.device_override = None
-            
-            device = self.get_training_device()
-            device_name = f"GPU ({torch.cuda.get_device_name(0)})" if device.type == 'cuda' else "CPU"
+            # Get device based on preference
+            device, device_name = self.get_training_device()
             
             self.log_metric(f"Starting training with {epochs} epochs")
             self.log_metric(f"Learning rate: {lr}, Batch size: {batch_size}")
-            self.log_metric(f"Device: {device_name}")
+            self.log_metric(f"Using device: {device_name}")
+            self.log_metric(f"Device preference: {self.device_preference}")
             self.log_metric("-" * 50)
             self.show_notification(f"🚀 Training started on {device_name}", "info")
             

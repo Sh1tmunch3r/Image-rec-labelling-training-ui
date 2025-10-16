@@ -150,6 +150,13 @@ For experienced users, customize these parameters:
 - Recommended: Keep enabled
 - Helps model generalize better
 
+**Compute Device**: Select which hardware to use for training
+- **Auto (recommended)**: Automatically uses GPU if available, otherwise CPU
+- **Force GPU**: Always attempts to use GPU, falls back to CPU if unavailable
+- **Force CPU**: Always uses CPU for training
+- The detected device is displayed below the dropdown
+- Your preference is saved and persists across sessions
+
 ### Monitoring Training
 Watch the metrics console for:
 - Current epoch progress
@@ -252,6 +259,20 @@ See how balanced your dataset is:
 - Verify all annotations are saved
 - Make sure classes.txt is not empty
 - Try reducing batch size if memory error
+
+### GPU not detected
+- Verify CUDA-compatible GPU is installed
+- Check NVIDIA drivers are up to date
+- Install PyTorch with CUDA support: `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118`
+- Restart the application after installing GPU drivers
+- Use "Force CPU" option if GPU setup isn't working
+
+### GPU training fails but CPU works
+- Try "Force CPU" in the Compute Device dropdown
+- Check GPU memory isn't full (close other GPU applications)
+- Reduce batch size to 1 or 2
+- Update GPU drivers
+- Your preference will be saved for future sessions
 
 ### Image won't load
 - Check file format (PNG, JPG, JPEG only)
