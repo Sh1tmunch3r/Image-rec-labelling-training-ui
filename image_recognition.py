@@ -22,6 +22,9 @@ import copy
 from typing import List, Dict, Tuple, Optional
 
 import pytesseract
+
+# Import dataset utilities
+from dataset_utils import validate_dataset, register_dataset_as_project
 # More flexible tesseract path handling
 try:
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
@@ -228,7 +231,9 @@ class AnnotationDataset(Dataset):
 
         boxes = []
         labels = []
-        for ann in data.get('annotations', []):
+        # Support both per-image format (detections key) and project format (annotations key)
+        annotations = data.get('annotations', data.get('detections', []))
+        for ann in annotations:
             box = ann.get('box')
             label = ann.get('label')
             if box and label in self.class_to_id:
@@ -988,6 +993,19 @@ class ImageRecognitionApp(ctk.CTk):
                                                fg_color="#3498DB", hover_color="#2980B9")
         self.check_cuda_button.grid(row=3, column=0, columnspan=2, pady=5, sticky="ew")
 
+        # Dataset validation button
+        self.validate_dataset_button = ctk.CTkButton(left_frame, text="✓ Validate Dataset",
+                                                     command=self.validate_current_dataset,
+                                                     width=180, height=32,
+                                                     fg_color="#3498DB", hover_color="#2980B9")
+        self.validate_dataset_button.pack(pady=5, padx=20, fill="x")
+        
+        # Dataset status label
+        self.dataset_status_label = ctk.CTkLabel(left_frame, text="", 
+                                                 font=ctk.CTkFont(size=10),
+                                                 wraplength=240)
+        self.dataset_status_label.pack(pady=5, padx=20)
+        
         self.train_button = ctk.CTkButton(left_frame, text="🚀 Start Training",
                                          command=self.train_model_thread,
                                          fg_color="green", hover_color="darkgreen",
@@ -2360,10 +2378,83 @@ Class Distribution:
         self.last_save_time = time.time()
         self.update_stats()
 
+    def validate_current_dataset(self):
+        """Validate the current project dataset and show results"""
+        project = self.current_project
+        
+        if not project:
+            # Try to find most recent project
+            if os.path.exists(PROJECTS_FOLDER):
+                projects = [os.path.join(PROJECTS_FOLDER, d) 
+                           for d in os.listdir(PROJECTS_FOLDER) 
+                           if os.path.isdir(os.path.join(PROJECTS_FOLDER, d))]
+                if projects:
+                    projects.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                    project = projects[0]
+                    self.dataset_status_label.configure(
+                        text=f"Using most recent: {os.path.basename(project)}",
+                        text_color="#E67E22")
+                else:
+                    self.dataset_status_label.configure(
+                        text="No project found",
+                        text_color="#E74C3C")
+                    showerror("Error", "No project selected and no projects found.")
+                    return
+            else:
+                self.dataset_status_label.configure(
+                    text="No project found",
+                    text_color="#E74C3C")
+                showerror("Error", "No project selected.")
+                return
+        
+        # Validate dataset
+        is_valid, status = validate_dataset(project)
+        
+        # Update status label
+        if is_valid:
+            status_text = (f"✓ Dataset valid\n"
+                          f"Images: {status['image_count']} | "
+                          f"Annotations: {status['valid_annotations']} | "
+                          f"Classes: {len(status['classes'])}")
+            self.dataset_status_label.configure(text=status_text, text_color="#2ECC71")
+            
+            # Show detailed info
+            detail_msg = (f"Dataset Validation: PASSED ✓\n\n"
+                         f"Project: {os.path.basename(project)}\n"
+                         f"Images: {status['image_count']}\n"
+                         f"Annotated: {status['valid_annotations']}\n"
+                         f"Classes: {len(status['classes'])}\n"
+                         f"  {', '.join(sorted(status['classes']))}\n")
+            
+            if status['warnings']:
+                detail_msg += f"\nWarnings ({len(status['warnings'])}):\n"
+                for warning in status['warnings'][:5]:
+                    detail_msg += f"  • {warning}\n"
+            
+            detail_msg += "\nDataset is ready for training!"
+            showinfo("Dataset Validation", detail_msg)
+            
+        else:
+            status_text = f"✗ Validation failed"
+            self.dataset_status_label.configure(text=status_text, text_color="#E74C3C")
+            
+            # Show errors
+            error_msg = (f"Dataset Validation: FAILED ✗\n\n"
+                        f"Project: {os.path.basename(project)}\n\n"
+                        f"Errors:\n")
+            for error in status['errors']:
+                error_msg += f"  • {error}\n"
+            
+            if status['warnings']:
+                error_msg += f"\nWarnings:\n"
+                for warning in status['warnings'][:5]:
+                    error_msg += f"  • {warning}\n"
+            
+            error_msg += f"\nDataset path: {project}"
+            showerror("Dataset Validation Failed", error_msg)
+    
     def train_model_thread(self):
-        if not self.current_project:
-            showerror("Error", "No project selected.")
-            return
+        # Allow training even without current project - will auto-select
         t = threading.Thread(target=self.train_model)
         t.daemon = True
         t.start()
@@ -2373,6 +2464,54 @@ Class Distribution:
         self.progress_bar.set(0)
         
         try:
+            # Auto-select most recent project if none selected
+            project_to_train = self.current_project
+            if not project_to_train:
+                # Try to find the most recent project
+                if os.path.exists(PROJECTS_FOLDER):
+                    projects = [os.path.join(PROJECTS_FOLDER, d) 
+                               for d in os.listdir(PROJECTS_FOLDER) 
+                               if os.path.isdir(os.path.join(PROJECTS_FOLDER, d))]
+                    if projects:
+                        # Sort by modification time (most recent first)
+                        projects.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                        project_to_train = projects[0]
+                        self.log_metric(f"No project selected. Auto-selected most recent: {os.path.basename(project_to_train)}")
+                        
+                        # Ask user if they want to use this project
+                        if not askyesno("Auto-Select Project", 
+                                       f"No project selected. Use most recent project?\n\n"
+                                       f"Project: {os.path.basename(project_to_train)}"):
+                            raise ValueError("No project selected for training.")
+                    else:
+                        raise ValueError("No project selected and no projects found.")
+                else:
+                    raise ValueError("No project selected for training.")
+            
+            # Validate dataset before training
+            self.log_metric("Validating dataset...")
+            is_valid, status = validate_dataset(project_to_train)
+            
+            if not is_valid:
+                error_msg = "Dataset validation failed:\n\n"
+                for error in status["errors"]:
+                    error_msg += f"  • {error}\n"
+                    self.log_metric(f"ERROR: {error}")
+                
+                if status["warnings"]:
+                    error_msg += "\nWarnings:\n"
+                    for warning in status["warnings"][:3]:
+                        error_msg += f"  • {warning}\n"
+                        self.log_metric(f"WARNING: {warning}")
+                
+                error_msg += f"\nDataset path: {project_to_train}"
+                raise ValueError(error_msg)
+            
+            self.log_metric(f"✓ Dataset validation passed")
+            self.log_metric(f"  Images: {status['image_count']}")
+            self.log_metric(f"  Valid annotations: {status['valid_annotations']}")
+            self.log_metric(f"  Classes: {len(status['classes'])} - {sorted(status['classes'])}")
+            
             # Get hyperparameters
             epochs = int(self.epochs_entry.get() or 10)
             lr = float(self.lr_entry.get() or 0.005)
@@ -2403,20 +2542,25 @@ Class Distribution:
             self.log_metric("-" * 50)
             self.show_notification(f"🚀 Training started on {device_name}", "info")
             
-            with open(os.path.join(self.current_project, "classes.txt"), "r") as f:
+            classes_path = os.path.join(project_to_train, "classes.txt")
+            if not os.path.exists(classes_path):
+                raise ValueError(f"Classes file not found: {classes_path}")
+            
+            with open(classes_path, "r") as f:
                 classes = [line.strip() for line in f if line.strip()]
             if not classes:
-                raise ValueError("No classes defined.")
+                raise ValueError("No classes defined in classes.txt")
             class_to_id = {c: i+1 for i, c in enumerate(classes)}
             num_classes = len(classes) + 1
 
-            dataset = AnnotationDataset(self.current_project, class_to_id)
+            dataset = AnnotationDataset(project_to_train, class_to_id)
             # Filter None
             data = [d for d in dataset if d[0] is not None]
             if not data:
-                raise ValueError("No valid annotated images.")
+                raise ValueError(f"No valid annotated images found in {project_to_train}.\n"
+                               f"Expected format: images in 'images/' folder, annotations in 'annotations/' folder.")
             
-            self.log_metric(f"Loaded {len(data)} annotated images")
+            self.log_metric(f"Loaded {len(data)} annotated images from {len(dataset)} total images")
             dataloader = DataLoader(data, batch_size=batch_size, shuffle=True, 
                                   collate_fn=lambda x: tuple(zip(*x)))
 
@@ -2450,14 +2594,18 @@ Class Distribution:
                                                  text_color="#E67E22")
                 self.log_metric(f"Epoch {epoch+1}/{epochs} - Avg Loss: {avg_loss:.4f}")
 
-            model_path = os.path.join(self.current_project, "model.pth")
+            model_path = os.path.join(project_to_train, "model.pth")
             torch.save(model.state_dict(), model_path)
             self.log_metric("-" * 50)
             self.log_metric(f"Model saved to: {model_path}")
 
-            project_name = os.path.basename(self.current_project)
+            project_name = os.path.basename(project_to_train)
             self.generate_recognizer(project_name, model_path, classes)
             self.reload_recognizers()
+            
+            # Auto-select the newly trained recognizer
+            self.selected_recognizer.set(project_name)
+            self.show_notification(f"✓ Model '{project_name}' selected for recognition", "success")
 
             self.progress_bar.set(1.0)
             self.progress_label.configure(text="100%")
@@ -2746,13 +2894,55 @@ class Recognizer:
                 # Save single image
                 self.save_single_detection(images_dir, annotations_dir, format_type, timestamp)
             
-            self.show_notification(f"✓ Saved to {export_dir}", "success")
-            showinfo("Export Complete", 
-                    f"Images and annotations saved successfully!\n\n"
-                    f"Location: {os.path.abspath(export_dir)}\n"
-                    f"Format: {format_type}\n"
-                    f"Images: {len(os.listdir(images_dir))}\n"
-                    f"Detections: {len(self.rec_last_results)}")
+            # Validate and register dataset
+            self.show_notification("Validating dataset...", "info")
+            is_valid, status = validate_dataset(export_dir)
+            
+            if is_valid:
+                # Ask user if they want to register this dataset for training
+                register_msg = (f"Dataset exported successfully!\n\n"
+                              f"Images: {status['image_count']}\n"
+                              f"Valid annotations: {status['valid_annotations']}\n"
+                              f"Classes: {len(status['classes'])}\n\n"
+                              f"Would you like to register this dataset as a project for training?")
+                
+                if askyesno("Register Dataset", register_msg):
+                    project_name = f"exported_{timestamp}"
+                    success, project_path, msg = register_dataset_as_project(export_dir, project_name)
+                    
+                    if success:
+                        self.show_notification(f"✓ Dataset registered: {project_name}", "success")
+                        # Offer to switch to this project
+                        if askyesno("Switch Project", 
+                                   f"Dataset registered as project '{project_name}'.\n\n"
+                                   f"Would you like to switch to this project now?"):
+                            self.load_project(project_path)
+                            self.show_notification(f"✓ Switched to {project_name}", "success")
+                        
+                        showinfo("Success", msg)
+                    else:
+                        showerror("Registration Failed", msg)
+                        self.show_notification("✗ Dataset registration failed", "error")
+                else:
+                    showinfo("Export Complete", 
+                            f"Images and annotations saved successfully!\n\n"
+                            f"Location: {os.path.abspath(export_dir)}\n"
+                            f"Format: {format_type}\n"
+                            f"Images: {len(os.listdir(images_dir))}\n"
+                            f"Note: Dataset not registered for training")
+            else:
+                # Show validation errors
+                error_msg = "Dataset exported but validation failed:\n\n"
+                for error in status["errors"][:5]:
+                    error_msg += f"  • {error}\n"
+                if status["warnings"]:
+                    error_msg += "\nWarnings:\n"
+                    for warning in status["warnings"][:3]:
+                        error_msg += f"  • {warning}\n"
+                error_msg += f"\nLocation: {os.path.abspath(export_dir)}"
+                
+                showerror("Validation Issues", error_msg)
+                self.show_notification("⚠️ Dataset exported but has validation issues", "warning")
             
         except Exception as e:
             showerror("Save Error", f"Failed to save: {str(e)}")
