@@ -3053,21 +3053,43 @@ class Recognizer:
             # Add annotations for this image
             for res in results:
                 box = res.get('box')
-                if not box:
-                    continue
+                polygon = res.get('polygon')
                 
-                x1, y1, x2, y2 = box
-                width = x2 - x1
-                height = y2 - y1
+                # Skip if neither box nor polygon
+                if not box and not polygon:
+                    continue
                 
                 annotation = {
                     "id": annotation_id,
                     "image_id": image_id,
                     "category_id": category_to_id.get(res.get('label', 'Unknown'), 1),
-                    "bbox": [x1, y1, width, height],  # COCO format: [x, y, width, height]
-                    "area": width * height,
                     "iscrowd": 0
                 }
+                
+                # Handle polygon annotations
+                if polygon:
+                    # Flatten polygon points to COCO segmentation format: [x1,y1,x2,y2,...]
+                    segmentation = []
+                    for pt in polygon:
+                        segmentation.extend([float(pt[0]), float(pt[1])])
+                    annotation["segmentation"] = [segmentation]
+                    
+                    # Calculate bounding box from polygon for bbox field (required in COCO)
+                    xs = [pt[0] for pt in polygon]
+                    ys = [pt[1] for pt in polygon]
+                    x1, y1 = min(xs), min(ys)
+                    x2, y2 = max(xs), max(ys)
+                    width = x2 - x1
+                    height = y2 - y1
+                    annotation["bbox"] = [x1, y1, width, height]
+                    annotation["area"] = width * height
+                # Handle box annotations
+                elif box:
+                    x1, y1, x2, y2 = box
+                    width = x2 - x1
+                    height = y2 - y1
+                    annotation["bbox"] = [x1, y1, width, height]
+                    annotation["area"] = width * height
                 
                 if 'score' in res:
                     annotation['score'] = res['score']
@@ -3094,9 +3116,17 @@ class Recognizer:
         for res in results:
             detection = {
                 "label": res.get('label', 'Unknown'),
-                "box": res.get('box'),
                 "confidence": res.get('score')
             }
+            
+            # Include box if present
+            if res.get('box'):
+                detection["box"] = res.get('box')
+            
+            # Include polygon if present
+            if res.get('polygon'):
+                detection["polygon"] = res.get('polygon')
+            
             data["detections"].append(detection)
         
         with open(ann_path, 'w') as f:
