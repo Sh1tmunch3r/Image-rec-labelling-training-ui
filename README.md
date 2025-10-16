@@ -20,11 +20,14 @@ A professional, full-featured image annotation and model training application wi
 - **Organized structure** - Automatic folder organization (images/ and annotations/)
 - **Training-ready** - Exports work directly with common training frameworks
 
-### 🖥️ GPU Auto-Detection & Training
+### 🖥️ GPU Auto-Detection & Compute Device Selection
 - **Automatic CUDA detection** - Detects and uses GPU automatically at startup
-- **Smart fallback** - Gracefully falls back to CPU if GPU initialization fails
-- **Device override** - Force CPU or GPU usage via Settings
-- **Real-time indicator** - Status bar shows current device (GPU/CPU)
+- **Tri-state device control** - Choose Auto, Force GPU, or Force CPU
+- **Smart fallback** - Gracefully falls back to CPU if GPU initialization fails with warning
+- **Device preference persistence** - Settings saved across sessions in `config/settings.json`
+- **Real-time device display** - Shows detected device in Training tab
+- **Info tooltip** - Hover over ℹ️ icon for device selection behavior explanation
+- **Status bar indicator** - Shows current active device (GPU/CPU)
 - **5-10x faster training** - Leverage GPU acceleration when available
 
 ### 🧠 Intelligent Auto-Training
