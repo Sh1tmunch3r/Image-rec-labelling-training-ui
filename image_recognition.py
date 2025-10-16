@@ -263,6 +263,16 @@ class ImageRecognitionApp(ctk.CTk):
         # Auto-save settings
         self.auto_save_enabled = True
         self.last_save_time = None
+        
+        # Device settings for training
+        self.detect_device()
+        self.device_override = None  # None = auto, 'cuda' = force GPU, 'cpu' = force CPU
+        
+        # Live recognition settings
+        self.live_recognition_active = False
+        self.live_capture_thread = None
+        self.live_fps = 3
+        self.live_frames_to_save = 10
 
         if not os.path.exists(RECOGNIZER_FOLDER):
             os.makedirs(RECOGNIZER_FOLDER)
@@ -355,8 +365,69 @@ class ImageRecognitionApp(ctk.CTk):
         self.reload_recognizers()
         self.setup_keyboard_shortcuts()
         self.setup_menu_bar()
+        self.setup_status_bar()
         self.show_onboarding()
 
+    def detect_device(self):
+        """Detect CUDA availability and set device"""
+        try:
+            if torch.cuda.is_available():
+                self.detected_device = 'cuda'
+                self.device_name = torch.cuda.get_device_name(0)
+            else:
+                self.detected_device = 'cpu'
+                self.device_name = 'CPU'
+        except Exception as e:
+            print(f"Error detecting device: {e}")
+            self.detected_device = 'cpu'
+            self.device_name = 'CPU (fallback)'
+    
+    def get_training_device(self):
+        """Get device for training based on override or auto-detection"""
+        if self.device_override:
+            device_str = self.device_override
+        else:
+            device_str = self.detected_device
+        
+        try:
+            device = torch.device(device_str)
+            # Test if device is actually available
+            torch.zeros(1).to(device)
+            return device
+        except Exception as e:
+            print(f"Failed to use {device_str}, falling back to CPU: {e}")
+            self.show_notification(f"⚠️ GPU initialization failed, using CPU", "warning")
+            return torch.device('cpu')
+    
+    def setup_status_bar(self):
+        """Setup status bar at bottom of window"""
+        self.status_bar = ctk.CTkFrame(self, height=32, corner_radius=0)
+        self.status_bar.pack(side="bottom", fill="x", padx=0, pady=0)
+        
+        # Device indicator
+        device_text = f"🖥️ Device: {self.device_name}"
+        self.device_label = ctk.CTkLabel(self.status_bar, text=device_text, 
+                                         font=ctk.CTkFont(size=11),
+                                         text_color="#95A5A6")
+        self.device_label.pack(side="left", padx=10, pady=5)
+        
+        # Status message
+        self.status_message = ctk.CTkLabel(self.status_bar, text="Ready", 
+                                          font=ctk.CTkFont(size=11),
+                                          text_color="#95A5A6")
+        self.status_message.pack(side="left", padx=20, pady=5)
+    
+    def show_notification(self, message, msg_type="info"):
+        """Show notification in status bar"""
+        colors = {
+            "info": "#3498DB",
+            "success": "#2ECC71",
+            "warning": "#E67E22",
+            "error": "#E74C3C"
+        }
+        if hasattr(self, 'status_message'):
+            self.status_message.configure(text=message, text_color=colors.get(msg_type, "#95A5A6"))
+    
     def setup_recognize_tab(self):
         tab = self.tabview.add("Recognize")
         tab.columnconfigure(1, weight=1)
@@ -401,6 +472,43 @@ class ImageRecognitionApp(ctk.CTk):
         ctk.CTkCheckBox(left_panel, text="Remove Duplicates (NMS)", 
                        variable=self.nms_var,
                        font=ctk.CTkFont(size=11)).pack(pady=5)
+        
+        # Live recognition section
+        ctk.CTkLabel(left_panel, text="🎥 Live Mode", 
+                    font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(15, 8))
+        
+        self.live_mode_var = tk.BooleanVar(value=False)
+        self.live_mode_checkbox = ctk.CTkCheckBox(left_panel, text="Enable Live Recognition", 
+                                                   variable=self.live_mode_var,
+                                                   command=self.toggle_live_mode,
+                                                   font=ctk.CTkFont(size=12))
+        self.live_mode_checkbox.pack(pady=5)
+        
+        # FPS control
+        fps_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
+        fps_frame.pack(pady=5, padx=10, fill="x")
+        ctk.CTkLabel(fps_frame, text="FPS:", 
+                    font=ctk.CTkFont(size=11)).pack(side="left")
+        self.fps_label = ctk.CTkLabel(fps_frame, text=f"{self.live_fps}", 
+                                      width=30,
+                                      font=ctk.CTkFont(size=11, weight="bold"),
+                                      text_color="#3498DB")
+        self.fps_label.pack(side="right")
+        self.fps_slider = ctk.CTkSlider(left_panel, from_=1, to=10, number_of_steps=9,
+                                        command=self.update_fps,
+                                        height=16, button_length=18)
+        self.fps_slider.set(self.live_fps)
+        self.fps_slider.pack(pady=4, padx=10, fill="x")
+        
+        # Frames to save control
+        frames_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
+        frames_frame.pack(pady=5, padx=10, fill="x")
+        ctk.CTkLabel(frames_frame, text="Save frames:", 
+                    font=ctk.CTkFont(size=11)).pack(side="left")
+        self.frames_entry = ctk.CTkEntry(frames_frame, width=60, 
+                                         font=ctk.CTkFont(size=11))
+        self.frames_entry.insert(0, str(self.live_frames_to_save))
+        self.frames_entry.pack(side="right")
 
         self.rec_capture_button = ctk.CTkButton(left_panel, text="📸 Capture & Recognize", 
                                                 command=self.rec_capture_and_recognize_thread,
@@ -417,16 +525,33 @@ class ImageRecognitionApp(ctk.CTk):
         self.rec_result_panel = ResultListBox(left_panel, self.rec_highlight_box)
         self.rec_result_panel.pack(fill="x", padx=10, pady=(0, 12))
 
-        self.rec_save_button = ctk.CTkButton(left_panel, text="💾 Save Image", 
-                                             command=self.rec_save_image,
-                                             height=32, corner_radius=8,
-                                             font=ctk.CTkFont(size=12))
+        # Save options
+        ctk.CTkLabel(left_panel, text="💾 Export", 
+                    font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(12, 6))
+        
+        # Annotation format selector
+        format_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
+        format_frame.pack(pady=5, padx=10, fill="x")
+        ctk.CTkLabel(format_frame, text="Format:", 
+                    font=ctk.CTkFont(size=11)).pack(side="left")
+        self.save_format_var = tk.StringVar(value="COCO JSON")
+        self.format_menu = ctk.CTkOptionMenu(format_frame, variable=self.save_format_var,
+                                            values=["COCO JSON", "Per-image JSON"],
+                                            width=130, height=28,
+                                            font=ctk.CTkFont(size=10))
+        self.format_menu.pack(side="right")
+        
+        self.rec_save_button = ctk.CTkButton(left_panel, text="💾 Save Images + Annotations", 
+                                             command=self.rec_save_images_with_annotations,
+                                             height=36, corner_radius=8,
+                                             font=ctk.CTkFont(size=12, weight="bold"),
+                                             fg_color="#27AE60", hover_color="#229954")
         self.rec_save_button.pack(pady=5, padx=10, fill="x")
 
         self.rec_copy_button = ctk.CTkButton(left_panel, text="📋 Copy Labels", 
                                              command=self.rec_copy_labels,
                                              height=32, corner_radius=8,
-                                             font=ctk.CTkFont(size=12))
+                                             font=ctk.CTkFont(size=11))
         self.rec_copy_button.pack(pady=5, padx=10, fill="x")
 
         # Image frame
@@ -641,8 +766,18 @@ class ImageRecognitionApp(ctk.CTk):
         self.augment_var = tk.BooleanVar(value=True)
         ctk.CTkCheckBox(params_frame, text="Data Augmentation", 
                        variable=self.augment_var).grid(row=5, column=0, columnspan=2, pady=10)
+        
+        # Device selection
+        ctk.CTkLabel(params_frame, text="Device:").grid(row=6, column=0, sticky="w", pady=5, padx=5)
+        self.device_var = tk.StringVar(value="Auto")
+        device_options = ["Auto", "Force CPU"]
+        if torch.cuda.is_available():
+            device_options.append("Force GPU")
+        self.device_menu = ctk.CTkOptionMenu(params_frame, variable=self.device_var,
+                                            values=device_options, width=100)
+        self.device_menu.grid(row=6, column=1, pady=5, padx=5)
 
-        self.train_button = ctk.CTkButton(left_frame, text="🚀 Start Training", 
+        self.train_button = ctk.CTkButton(left_frame, text="🚀 Start Training",
                                          command=self.train_model_thread,
                                          fg_color="green", hover_color="darkgreen",
                                          height=40, font=ctk.CTkFont(size=16, weight="bold"))
@@ -975,6 +1110,32 @@ Recommended: 0.5 for balanced results
 • Keeps only the best detection per object
 • Essential for clean results
 Recommended: Keep enabled
+
+🎥 LIVE RECOGNITION MODE
+• Continuously captures and recognizes screen in real-time
+• Configurable FPS (1-10 frames per second)
+• Save multiple frames at once with annotations
+• Great for monitoring dynamic content
+• Toggle off for single screenshot mode
+Recommended: 3-5 FPS for balance
+
+💾 SAVE IMAGES + ANNOTATIONS
+• Exports images with detection metadata
+• COCO JSON: Standard format for training pipelines
+• Per-image JSON: Simple format for individual files
+• Organized folder structure (images/ and annotations/)
+• Ready for model training or analysis
+
+═══════════════════════════════════════════════════════
+                    DEVICE SELECTION
+═══════════════════════════════════════════════════════
+
+🖥️ GPU/CPU TRAINING
+• Auto: Automatically uses GPU if available, falls back to CPU
+• Force GPU: Use GPU even if auto-detection suggests CPU
+• Force CPU: Use CPU even if GPU is available
+• GPU training is typically 5-10x faster
+• App shows current device in status bar
 
 ═══════════════════════════════════════════════════════
 
@@ -2008,10 +2169,23 @@ Class Distribution:
             momentum = float(self.momentum_entry.get() or 0.9)
             weight_decay = float(self.weight_decay_entry.get() or 0.0005)
             
+            # Get device preference
+            device_pref = self.device_var.get()
+            if device_pref == "Force CPU":
+                self.device_override = 'cpu'
+            elif device_pref == "Force GPU":
+                self.device_override = 'cuda'
+            else:
+                self.device_override = None
+            
+            device = self.get_training_device()
+            device_name = f"GPU ({torch.cuda.get_device_name(0)})" if device.type == 'cuda' else "CPU"
+            
             self.log_metric(f"Starting training with {epochs} epochs")
             self.log_metric(f"Learning rate: {lr}, Batch size: {batch_size}")
-            self.log_metric(f"Device: {'GPU' if torch.cuda.is_available() else 'CPU'}")
+            self.log_metric(f"Device: {device_name}")
             self.log_metric("-" * 50)
+            self.show_notification(f"🚀 Training started on {device_name}", "info")
             
             with open(os.path.join(self.current_project, "classes.txt"), "r") as f:
                 classes = [line.strip() for line in f if line.strip()]
@@ -2031,7 +2205,6 @@ Class Distribution:
                                   collate_fn=lambda x: tuple(zip(*x)))
 
             model = fasterrcnn_resnet50_fpn(weights=None, num_classes=num_classes)
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             model.to(device)
 
             params = [p for p in model.parameters() if p.requires_grad]
@@ -2251,6 +2424,277 @@ class Recognizer:
         self.clipboard_clear()
         self.clipboard_append(s)
         self.rec_status_label.configure(text="Labels Copied!", text_color="#27AE60")
+    
+    def toggle_live_mode(self):
+        """Toggle live recognition mode"""
+        if self.live_mode_var.get():
+            self.start_live_recognition()
+        else:
+            self.stop_live_recognition()
+    
+    def update_fps(self, value):
+        """Update FPS for live recognition"""
+        self.live_fps = int(float(value))
+        self.fps_label.configure(text=f"{self.live_fps}")
+    
+    def start_live_recognition(self):
+        """Start live recognition mode"""
+        names = self.recognizer_manager.get_names()
+        if not names:
+            showerror("Error", "No recognizers available. Train a model first.")
+            self.live_mode_var.set(False)
+            return
+        
+        self.live_recognition_active = True
+        self.rec_capture_button.configure(state="disabled")
+        self.show_notification(f"🎥 Live recognition running — {self.live_fps} FPS", "info")
+        
+        # Start capture thread
+        self.live_capture_thread = threading.Thread(target=self.live_recognition_loop, daemon=True)
+        self.live_capture_thread.start()
+    
+    def stop_live_recognition(self):
+        """Stop live recognition mode"""
+        self.live_recognition_active = False
+        self.rec_capture_button.configure(state="normal")
+        self.show_notification("Live recognition stopped", "info")
+    
+    def live_recognition_loop(self):
+        """Continuous capture and recognition loop"""
+        rec_name = self.selected_recognizer.get()
+        
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]
+            
+            while self.live_recognition_active:
+                start_time = time.time()
+                
+                try:
+                    # Capture screen
+                    sct_img = sct.grab(monitor)
+                    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                    img_np = np.array(img)
+                    
+                    # Recognize
+                    results_raw = self.recognizer_manager.recognize(rec_name, img_np)
+                    self.rec_last_results_raw = results_raw
+                    results = self.filter_detections(results_raw)
+                    
+                    # Update display
+                    self.rec_last_image = img
+                    self.rec_last_results = results
+                    self.rec_display_image_with_boxes(img, results, None)
+                    self.rec_result_panel.update_results(results)
+                    self.rec_status_label.configure(text=f"Live: {len(results)} detections", 
+                                                   text_color="green")
+                    
+                except Exception as e:
+                    print(f"Error in live recognition: {e}")
+                
+                # Sleep to maintain FPS
+                elapsed = time.time() - start_time
+                sleep_time = max(0, (1.0 / self.live_fps) - elapsed)
+                time.sleep(sleep_time)
+    
+    def rec_save_images_with_annotations(self):
+        """Save detected images with annotations in COCO or per-image JSON format"""
+        if self.rec_last_image is None:
+            showerror("Error", "No image to save. Capture or run recognition first.")
+            return
+        
+        if not self.rec_last_results:
+            if not askyesno("No Detections", "No detections found. Save image anyway?"):
+                return
+        
+        # Create export directory
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        export_dir = os.path.join("exports", f"recognition_{timestamp}")
+        images_dir = os.path.join(export_dir, "images")
+        annotations_dir = os.path.join(export_dir, "annotations")
+        
+        try:
+            os.makedirs(images_dir, exist_ok=True)
+            os.makedirs(annotations_dir, exist_ok=True)
+            
+            format_type = self.save_format_var.get()
+            
+            if self.live_recognition_active:
+                # Save multiple frames from live mode
+                try:
+                    num_frames = int(self.frames_entry.get() or 10)
+                except ValueError:
+                    num_frames = 10
+                
+                self.save_live_frames(images_dir, annotations_dir, num_frames, format_type)
+            else:
+                # Save single image
+                self.save_single_detection(images_dir, annotations_dir, format_type, timestamp)
+            
+            self.show_notification(f"✓ Saved to {export_dir}", "success")
+            showinfo("Export Complete", 
+                    f"Images and annotations saved successfully!\n\n"
+                    f"Location: {os.path.abspath(export_dir)}\n"
+                    f"Format: {format_type}\n"
+                    f"Images: {len(os.listdir(images_dir))}\n"
+                    f"Detections: {len(self.rec_last_results)}")
+            
+        except Exception as e:
+            showerror("Save Error", f"Failed to save: {str(e)}")
+            self.show_notification(f"✗ Save failed: {str(e)}", "error")
+    
+    def save_single_detection(self, images_dir, annotations_dir, format_type, timestamp):
+        """Save a single detection result"""
+        # Save image
+        img_filename = f"detection_{timestamp}.png"
+        img_path = os.path.join(images_dir, img_filename)
+        self.rec_last_image.save(img_path)
+        
+        # Save annotations
+        if format_type == "COCO JSON":
+            self.save_coco_json(images_dir, annotations_dir, 
+                              [(img_filename, self.rec_last_image, self.rec_last_results)])
+        else:  # Per-image JSON
+            ann_filename = f"detection_{timestamp}.json"
+            ann_path = os.path.join(annotations_dir, ann_filename)
+            self.save_per_image_json(ann_path, img_filename, self.rec_last_image, 
+                                    self.rec_last_results, timestamp)
+    
+    def save_live_frames(self, images_dir, annotations_dir, num_frames, format_type):
+        """Save multiple frames from live recognition"""
+        saved_frames = []
+        rec_name = self.selected_recognizer.get()
+        
+        self.show_notification(f"Capturing {num_frames} frames...", "info")
+        
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]
+            
+            for i in range(num_frames):
+                if not self.live_recognition_active:
+                    break
+                
+                # Capture and recognize
+                sct_img = sct.grab(monitor)
+                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                img_np = np.array(img)
+                
+                results_raw = self.recognizer_manager.recognize(rec_name, img_np)
+                results = self.filter_detections(results_raw)
+                
+                # Save image
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")[:-3]
+                img_filename = f"frame_{i:04d}_{timestamp}.png"
+                img_path = os.path.join(images_dir, img_filename)
+                img.save(img_path)
+                
+                saved_frames.append((img_filename, img, results))
+                
+                # Small delay between captures
+                time.sleep(1.0 / self.live_fps)
+        
+        # Save annotations
+        if format_type == "COCO JSON":
+            self.save_coco_json(images_dir, annotations_dir, saved_frames)
+        else:  # Per-image JSON
+            for img_filename, img, results in saved_frames:
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                ann_filename = os.path.splitext(img_filename)[0] + ".json"
+                ann_path = os.path.join(annotations_dir, ann_filename)
+                self.save_per_image_json(ann_path, img_filename, img, results, timestamp)
+    
+    def save_coco_json(self, images_dir, annotations_dir, frames_data):
+        """Save annotations in COCO JSON format"""
+        coco_data = {
+            "info": {
+                "description": "Image Recognition Detections",
+                "version": "1.0",
+                "year": datetime.now().year,
+                "date_created": datetime.now().isoformat()
+            },
+            "images": [],
+            "annotations": [],
+            "categories": []
+        }
+        
+        # Collect unique categories
+        categories_set = set()
+        for _, _, results in frames_data:
+            for res in results:
+                categories_set.add(res.get('label', 'Unknown'))
+        
+        # Add categories
+        category_to_id = {}
+        for idx, cat_name in enumerate(sorted(categories_set), start=1):
+            coco_data["categories"].append({
+                "id": idx,
+                "name": cat_name,
+                "supercategory": "object"
+            })
+            category_to_id[cat_name] = idx
+        
+        # Add images and annotations
+        annotation_id = 1
+        for image_id, (img_filename, img, results) in enumerate(frames_data, start=1):
+            # Add image
+            coco_data["images"].append({
+                "id": image_id,
+                "file_name": img_filename,
+                "width": img.width,
+                "height": img.height,
+                "date_captured": datetime.now().isoformat()
+            })
+            
+            # Add annotations for this image
+            for res in results:
+                box = res.get('box')
+                if not box:
+                    continue
+                
+                x1, y1, x2, y2 = box
+                width = x2 - x1
+                height = y2 - y1
+                
+                annotation = {
+                    "id": annotation_id,
+                    "image_id": image_id,
+                    "category_id": category_to_id.get(res.get('label', 'Unknown'), 1),
+                    "bbox": [x1, y1, width, height],  # COCO format: [x, y, width, height]
+                    "area": width * height,
+                    "iscrowd": 0
+                }
+                
+                if 'score' in res:
+                    annotation['score'] = res['score']
+                
+                coco_data["annotations"].append(annotation)
+                annotation_id += 1
+        
+        # Save COCO JSON
+        coco_path = os.path.join(annotations_dir, "instances.json")
+        with open(coco_path, 'w') as f:
+            json.dump(coco_data, f, indent=2)
+    
+    def save_per_image_json(self, ann_path, img_filename, img, results, timestamp):
+        """Save annotations in per-image JSON format"""
+        data = {
+            "image": img_filename,
+            "width": img.width,
+            "height": img.height,
+            "timestamp": timestamp,
+            "source": "screen_capture",
+            "detections": []
+        }
+        
+        for res in results:
+            detection = {
+                "label": res.get('label', 'Unknown'),
+                "box": res.get('box'),
+                "confidence": res.get('score')
+            }
+            data["detections"].append(detection)
+        
+        with open(ann_path, 'w') as f:
+            json.dump(data, f, indent=2)
 
 if __name__ == "__main__":
     app = ImageRecognitionApp()
