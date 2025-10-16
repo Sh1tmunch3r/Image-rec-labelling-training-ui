@@ -217,14 +217,22 @@ python image_recognition.py
 
 ### 5. Use Your Model
 1. Go to the "Recognize" tab
-2. Select your trained model
+2. Select your trained model (auto-selected after training ⭐ NEW)
 3. **Adjust confidence threshold** for desired detection sensitivity ⭐ NEW
 4. **Enable NMS** to remove duplicate detections ⭐ NEW
 5. Choose between:
    - Single capture: Click "Capture & Recognize" for one-time detection
    - **Live mode**: Enable "Live Recognition" for continuous monitoring ⭐ NEW v3.0
 6. **Save images with annotations** in COCO JSON or per-image format ⭐ NEW v3.0
-7. View clean, filtered recognition results
+7. **Automatically register datasets** for training after export ⭐ NEW
+8. View clean, filtered recognition results
+
+### 6. Export to Training Workflow ⭐ NEW
+- Export datasets from Recognize tab with automatic validation
+- Register exported datasets as projects for immediate training
+- Validate datasets before training with detailed diagnostics
+- Auto-select most recent project if none is selected
+- See [DATASET_WORKFLOW.md](DATASET_WORKFLOW.md) for complete workflow guide
 
 ### 6. Monitor Progress
 - Check the "Dashboard" tab for project statistics

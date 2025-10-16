@@ -2,6 +2,50 @@
 
 All notable changes to Image Labeling Studio Pro are documented in this file.
 
+## [Unreleased] - Dataset Registration & Validation
+
+### 🔧 Dataset Management (NEW)
+
+#### Automatic Dataset Registration
+- **Export-to-Training Flow**: Exported datasets from Recognize tab can now be immediately registered as training projects
+- **Dataset Validation**: Comprehensive validation checks dataset structure, annotations, and classes before training
+- **Auto-Registration Dialog**: After export, users can choose to register dataset as a project in one click
+- **Project Switching**: Option to immediately switch to newly registered project after export
+- **Format Support**: Supports both export format (`detections` key) and project format (`annotations` key)
+
+#### Training Improvements
+- **Auto-Select Dataset**: Training now auto-selects most recent project if none is selected
+- **Validation Before Training**: Added "✓ Validate Dataset" button in Training tab
+- **Dataset Status Display**: Shows validation status (images, annotations, classes) in Training tab
+- **Better Error Messages**: Detailed diagnostics when dataset validation fails
+- **Auto-Select Recognizer**: Newly trained models are automatically selected in Recognize tab
+
+#### Validation Features
+- **Comprehensive Checks**: Validates directory structure, image count, annotation count, JSON format
+- **Detailed Diagnostics**: Shows specific errors (missing files, invalid JSON, format issues)
+- **Warning System**: Flags non-critical issues (missing annotations, empty arrays) without blocking training
+- **Class Detection**: Automatically detects and lists all classes found in annotations
+- **Format Flexibility**: Accepts both `detections` and `annotations` keys in JSON files
+
+### 📚 Documentation
+- **NEW**: `DATASET_WORKFLOW.md` - Complete guide for export-to-training workflow
+- **NEW**: `dataset_utils.py` - Standalone validation/registration utilities (no GUI dependencies)
+- **Updated**: README with new workflow section
+- **Updated**: Test suite with 13 new tests covering dataset validation and registration
+
+### 🧪 Testing
+- **NEW**: `test_dataset_registration.py` - Comprehensive test suite for:
+  - Dataset validation (valid, empty, missing annotations, invalid JSON)
+  - Dataset registration as project
+  - Format compatibility (detections vs annotations)
+  - Complete export-to-training flow
+- All tests pass (13/13 new tests, 32/32 existing tests)
+
+### 🔄 Backwards Compatibility
+- Existing projects and workflows continue to work unchanged
+- Old annotation format (`annotations` key) fully supported
+- No breaking changes to existing functionality
+
 ## [2.0.0] - Enhanced Professional Version
 
 ### 🎨 Major UI/UX Overhaul
