@@ -200,6 +200,43 @@ For text recognition features, install Tesseract OCR:
 python image_recognition.py
 ```
 
+## 🌐 Image Downloader Usage
+
+The new Image Download Harvester allows you to quickly populate your project with images from URLs:
+
+### How to Use:
+1. **Open the downloader**: 
+   - Via menu: Tools → Image Downloader
+   - Via button: Click the 🌐 Download button in the Label tab
+   
+2. **Prepare your URLs**:
+   - Paste URLs directly (one per line) into the text area
+   - Or click "Load URLs from File" to import from a .txt file
+   
+3. **Configure options**:
+   - **Preserve original filenames**: Keep the original filename when safe
+   - **Use Selenium**: Enable for JavaScript-heavy pages (slower but more compatible)
+   
+4. **Start download**:
+   - Click "Start Download" to begin
+   - Monitor progress in real-time
+   - Images are automatically saved to your project's images folder
+   - Downloads continue sequential numbering (e.g., img_0001.png, img_0002.png)
+
+### Example URLs file:
+```
+https://example.com/image1.jpg
+https://example.com/photos/sunset.png
+https://another-site.com/picture.jpg
+```
+
+### Features:
+- **Fast concurrent downloads**: Up to 5 simultaneous downloads
+- **Progress tracking**: Real-time progress bar and detailed logs
+- **Smart naming**: Automatic sequential numbering or preserved filenames
+- **Error handling**: Failed downloads are logged with details
+- **Project integration**: Downloads refresh the image list automatically
+
 ## 📖 Usage Guide
 
 ### 1. Create a New Project
