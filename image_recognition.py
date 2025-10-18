@@ -34,6 +34,11 @@ except:
 # Import device utilities
 from device_utils import load_settings, save_settings, get_device, log_cuda_diagnostics, get_cuda_diagnostics
 
+# Import UI utilities
+from ui.download_harvester import ImageDownloadHarvester
+from ui.app_config import load_app_config, save_app_config, update_app_config, get_app_config
+from ui.tooltip import ToolTip
+
 RECOGNIZER_FOLDER = "recognizers"
 PROJECTS_FOLDER = "projects"
 BOX_COLORS = [
@@ -280,6 +285,9 @@ class ImageRecognitionApp(ctk.CTk):
         # Load application settings
         self.settings = load_settings()
         
+        # Load app config for persistence
+        self.app_config = load_app_config()
+        
         # Auto-save settings
         self.auto_save_enabled = True
         self.last_save_time = None
@@ -364,6 +372,7 @@ class ImageRecognitionApp(ctk.CTk):
                                           command=self.export_annotations, width=85,
                                           height=32, corner_radius=8)
         self.export_button.pack(side="left", padx=3)
+        ToolTip(self.export_button, "Export annotations to various formats (COCO, YOLO, etc.)")
         
         # Right side - Statistics
         self.stats_frame = ctk.CTkFrame(self.project_frame, fg_color="transparent")
@@ -715,6 +724,7 @@ class ImageRecognitionApp(ctk.CTk):
                                              font=ctk.CTkFont(size=12, weight="bold"),
                                              fg_color="#27AE60", hover_color="#229954")
         self.rec_save_button.pack(pady=5, padx=10, fill="x")
+        ToolTip(self.rec_save_button, "Export recognized images with annotations in selected format")
 
         self.rec_copy_button = ctk.CTkButton(left_panel, text="📋 Copy Labels", 
                                              command=self.rec_copy_labels,
@@ -786,10 +796,13 @@ class ImageRecognitionApp(ctk.CTk):
         
         btn_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
         btn_frame.pack(pady=2)
-        self.lab_capture_button = ctk.CTkButton(btn_frame, text="📷 Capture", command=self.lab_capture_image_thread, width=130)
+        self.lab_capture_button = ctk.CTkButton(btn_frame, text="📷 Capture", command=self.lab_capture_image_thread, width=85)
         self.lab_capture_button.pack(side="left", padx=2)
-        self.lab_load_button = ctk.CTkButton(btn_frame, text="📁 Load", command=self.lab_load_image, width=130)
+        self.lab_load_button = ctk.CTkButton(btn_frame, text="📁 Load", command=self.lab_load_image, width=85)
         self.lab_load_button.pack(side="left", padx=2)
+        self.lab_download_button = ctk.CTkButton(btn_frame, text="🌐 Download", command=self.open_image_downloader, width=85)
+        self.lab_download_button.pack(side="left", padx=2)
+        ToolTip(self.lab_download_button, "Download images from URLs directly to project")
 
         # Zoom controls - Enhanced
         zoom_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
@@ -837,6 +850,7 @@ class ImageRecognitionApp(ctk.CTk):
                                             fg_color="green", hover_color="darkgreen",
                                             font=ctk.CTkFont(size=13, weight="bold"))
         self.lab_save_button.pack(pady=8, fill="x", padx=5)
+        ToolTip(self.lab_save_button, "Save current image annotations to project (Ctrl+S)")
 
         # Image frame
         image_frame = ctk.CTkFrame(tab)
@@ -1150,6 +1164,11 @@ class ImageRecognitionApp(ctk.CTk):
         import tkinter.Menu as Menu
         menubar = tk.Menu(self)
         self.config(menu=menubar)
+        
+        # Tools menu
+        tools_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Tools", menu=tools_menu)
+        tools_menu.add_command(label="Image Downloader", command=self.open_image_downloader)
         
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -1466,6 +1485,44 @@ Features:
         
         ctk.CTkButton(dialog, text="Close", command=dialog.destroy, height=35).pack(pady=10)
     
+    def open_image_downloader(self):
+        """Open the image downloader window"""
+        if not self.current_project:
+            response = askyesno(
+                "No Project Selected",
+                "No project is currently selected. Would you like to select a project first?\n\n"
+                "Click 'Yes' to select a project, or 'No' to open the downloader in standalone mode."
+            )
+            if response:
+                return
+        
+        project_path = self.current_project if self.current_project else None
+        
+        # Callback to refresh image list after download
+        def on_download_complete():
+            if self.current_project:
+                self.reload_image_list()
+                self.show_notification("Images downloaded successfully!", "success")
+        
+        # Open the downloader
+        downloader = ImageDownloadHarvester(
+            parent=self,
+            project_path=project_path,
+            on_complete_callback=on_download_complete
+        )
+        
+    def reload_image_list(self):
+        """Reload the image list for the current project"""
+        if not self.current_project:
+            return
+        
+        img_dir = os.path.join(self.current_project, "images")
+        if os.path.exists(img_dir):
+            self.image_list = sorted([f for f in os.listdir(img_dir) 
+                                     if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+            self.update_image_counter()
+            self.update_stats()
+    
     def show_onboarding(self):
         """Show onboarding dialog for first-time users"""
         if self.show_tooltips and not os.path.exists(os.path.join(PROJECTS_FOLDER, ".onboarding_shown")):
@@ -1564,6 +1621,10 @@ Press F1 anytime for detailed help on training!
     def load_project(self, path):
         self.current_project = path
         self.project_label.configure(text=os.path.basename(path))
+        
+        # Save last project to config
+        update_app_config('last_project', path)
+        
         with open(os.path.join(path, "classes.txt"), "r") as f:
             self.classes = [line.strip() for line in f if line.strip()]
         self.update_classes_list()

@@ -48,6 +48,16 @@ A professional, full-featured image annotation and model training application wi
 - **Status messages** - Clear indicators for saves, errors, and warnings
 - **Color-coded alerts** - Visual distinction between info, success, warning, and error
 
+### 🌐 Image Download Harvester ⭐ NEW v3.1
+- **Bulk image download** - Download images directly from URLs into your project
+- **Async downloads** - Fast concurrent downloads with throttling (max 5 simultaneous)
+- **Progress tracking** - Real-time progress bar and detailed download logs
+- **Smart naming** - Automatic sequential numbering (img_0001.png, img_0002.png, etc.)
+- **Safe filenames** - Option to preserve original names when safe
+- **Easy access** - Available via Tools menu or 🌐 Download button in Label tab
+- **Project integration** - Downloads go directly to project's images folder
+- **Error handling** - Detailed logging of successes and failures
+
 ### 📚 Comprehensive Help System
 - **F1 Quick Help** - Press F1 anywhere for instant guidance
 - **Training Guide** - Complete explanation of all parameters
@@ -190,6 +200,43 @@ For text recognition features, install Tesseract OCR:
 python image_recognition.py
 ```
 
+## 🌐 Image Downloader Usage
+
+The new Image Download Harvester allows you to quickly populate your project with images from URLs:
+
+### How to Use:
+1. **Open the downloader**: 
+   - Via menu: Tools → Image Downloader
+   - Via button: Click the 🌐 Download button in the Label tab
+   
+2. **Prepare your URLs**:
+   - Paste URLs directly (one per line) into the text area
+   - Or click "Load URLs from File" to import from a .txt file
+   
+3. **Configure options**:
+   - **Preserve original filenames**: Keep the original filename when safe
+   - **Use Selenium**: Enable for JavaScript-heavy pages (slower but more compatible)
+   
+4. **Start download**:
+   - Click "Start Download" to begin
+   - Monitor progress in real-time
+   - Images are automatically saved to your project's images folder
+   - Downloads continue sequential numbering (e.g., img_0001.png, img_0002.png)
+
+### Example URLs file:
+```
+https://example.com/image1.jpg
+https://example.com/photos/sunset.png
+https://another-site.com/picture.jpg
+```
+
+### Features:
+- **Fast concurrent downloads**: Up to 5 simultaneous downloads
+- **Progress tracking**: Real-time progress bar and detailed logs
+- **Smart naming**: Automatic sequential numbering or preserved filenames
+- **Error handling**: Failed downloads are logged with details
+- **Project integration**: Downloads refresh the image list automatically
+
 ## 📖 Usage Guide
 
 ### 1. Create a New Project
@@ -200,6 +247,12 @@ python image_recognition.py
 ### 2. Load Images
 - **Capture**: Take a screenshot of your screen
 - **Load**: Import images from files
+- **Download**: Use the new Image Downloader to fetch images from URLs ⭐ NEW
+  - Access via Tools → Image Downloader menu or the 🌐 Download button in the Label tab
+  - Paste URLs (one per line) or load from a text file
+  - Images are automatically saved to your project's images folder
+  - Supports concurrent downloads with progress tracking
+  - Automatically continues sequential numbering (img_0001.png, img_0002.png, etc.)
 - Navigate with arrow keys or buttons
 
 ### 3. Annotate Images
