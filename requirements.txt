@@ -5,3 +5,5 @@ torch>=2.0.0
 torchvision>=0.15.0
 mss>=9.0.0
 pytesseract>=0.3.10
+aiohttp>=3.8.0
+selenium>=4.0.0

@@ -34,6 +34,10 @@ except:
 # Import device utilities
 from device_utils import load_settings, save_settings, get_device, log_cuda_diagnostics, get_cuda_diagnostics
 
+# Import UI utilities
+from ui.download_harvester import ImageDownloadHarvester
+from ui.app_config import load_app_config, save_app_config, update_app_config, get_app_config
+
 RECOGNIZER_FOLDER = "recognizers"
 PROJECTS_FOLDER = "projects"
 BOX_COLORS = [
@@ -279,6 +283,9 @@ class ImageRecognitionApp(ctk.CTk):
         
         # Load application settings
         self.settings = load_settings()
+        
+        # Load app config for persistence
+        self.app_config = load_app_config()
         
         # Auto-save settings
         self.auto_save_enabled = True
@@ -786,10 +793,12 @@ class ImageRecognitionApp(ctk.CTk):
         
         btn_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
         btn_frame.pack(pady=2)
-        self.lab_capture_button = ctk.CTkButton(btn_frame, text="📷 Capture", command=self.lab_capture_image_thread, width=130)
+        self.lab_capture_button = ctk.CTkButton(btn_frame, text="📷 Capture", command=self.lab_capture_image_thread, width=85)
         self.lab_capture_button.pack(side="left", padx=2)
-        self.lab_load_button = ctk.CTkButton(btn_frame, text="📁 Load", command=self.lab_load_image, width=130)
+        self.lab_load_button = ctk.CTkButton(btn_frame, text="📁 Load", command=self.lab_load_image, width=85)
         self.lab_load_button.pack(side="left", padx=2)
+        self.lab_download_button = ctk.CTkButton(btn_frame, text="🌐 Download", command=self.open_image_downloader, width=85)
+        self.lab_download_button.pack(side="left", padx=2)
 
         # Zoom controls - Enhanced
         zoom_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
@@ -1151,6 +1160,11 @@ class ImageRecognitionApp(ctk.CTk):
         menubar = tk.Menu(self)
         self.config(menu=menubar)
         
+        # Tools menu
+        tools_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Tools", menu=tools_menu)
+        tools_menu.add_command(label="Image Downloader", command=self.open_image_downloader)
+        
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Help", menu=help_menu)
@@ -1466,6 +1480,44 @@ Features:
         
         ctk.CTkButton(dialog, text="Close", command=dialog.destroy, height=35).pack(pady=10)
     
+    def open_image_downloader(self):
+        """Open the image downloader window"""
+        if not self.current_project:
+            response = askyesno(
+                "No Project Selected",
+                "No project is currently selected. Would you like to select a project first?\n\n"
+                "Click 'Yes' to select a project, or 'No' to open the downloader in standalone mode."
+            )
+            if response:
+                return
+        
+        project_path = self.current_project if self.current_project else None
+        
+        # Callback to refresh image list after download
+        def on_download_complete():
+            if self.current_project:
+                self.reload_image_list()
+                self.show_notification("Images downloaded successfully!", "success")
+        
+        # Open the downloader
+        downloader = ImageDownloadHarvester(
+            parent=self,
+            project_path=project_path,
+            on_complete_callback=on_download_complete
+        )
+        
+    def reload_image_list(self):
+        """Reload the image list for the current project"""
+        if not self.current_project:
+            return
+        
+        img_dir = os.path.join(self.current_project, "images")
+        if os.path.exists(img_dir):
+            self.image_list = sorted([f for f in os.listdir(img_dir) 
+                                     if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+            self.update_image_counter()
+            self.update_stats()
+    
     def show_onboarding(self):
         """Show onboarding dialog for first-time users"""
         if self.show_tooltips and not os.path.exists(os.path.join(PROJECTS_FOLDER, ".onboarding_shown")):
@@ -1564,6 +1616,10 @@ Press F1 anytime for detailed help on training!
     def load_project(self, path):
         self.current_project = path
         self.project_label.configure(text=os.path.basename(path))
+        
+        # Save last project to config
+        update_app_config('last_project', path)
+        
         with open(os.path.join(path, "classes.txt"), "r") as f:
             self.classes = [line.strip() for line in f if line.strip()]
         self.update_classes_list()
