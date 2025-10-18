@@ -42,6 +42,7 @@ projects/.onboarding_shown
 
 # Config (keep template only)
 config/settings.json
+config/app_config.json
 
 # Temporary files
 *.tmp
